@@ -39,3 +39,9 @@ During sharing, another app may save it and be backed up somewhere, defeating th
 
 - `:sskr` — pure-JVM Kotlin crypto core (no Android dependency), JUnit-tested.
 - `:app` — Android application, depends on `:sskr`.
+
+## License
+
+GPL-3.0-only — see [LICENSE](LICENSE).
+
+ShardQuorum is a clean-room implementation of the public Blockchain Commons SSKR (BCR-2020-011) and Bytewords (BCR-2020-012) specifications. The bytewords wordlist, vendored specs under `docs/reference/`, and reference test vectors are derived from Blockchain Commons material under the BSD-2-Clause Plus Patent License (compatible with GPLv3); see [NOTICE](NOTICE) for full attribution.
