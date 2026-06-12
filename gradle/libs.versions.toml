@@ -1,0 +1,11 @@
+[versions]
+# Kept in lockstep with the future :app module and the Mood Cairns toolchain so
+# the Android build can consume :sskr without a Kotlin-version mismatch.
+kotlin = "2.0.21"
+junit = "4.13.2"
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+
+[libraries]
+junit = { group = "junit", name = "junit", version.ref = "junit" }
