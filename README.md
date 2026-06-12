@@ -6,6 +6,14 @@ ShardQuorum is an offline Android app that splits a high-value secret into a num
 
 Use cases: disaster-proof backup of a password-manager master passphrase, wallet seeds, LUKS keys, or another app's backup PIN; estate planning (e.g. 2-of-3 among family and a lawyer). Distribute shares physically (home, fireproof box, family, bank box); 3 out of 5 of which, for example, reunite the secret.
 
+## AI Declaration
+
+Written with assistance from Claude Code with Opus 4.8 and Fable 5.
+**All code is human reviewed and approved.**
+Additional agents used:
+    voltagrnt-qa-sec:code-reviewer
+    voltagent-qa-sec:security-auditor
+
 ## Methodology
 
 - GF(256) field arithmetic (`:sskr`)
