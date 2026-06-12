@@ -9,8 +9,11 @@ Use cases: disaster-proof backup of a password-manager master passphrase, wallet
 ## AI Declaration
 
 Written with assistance from Claude Code with Opus 4.8 and Fable 5.
+
 **All code is human reviewed and approved.**
+
 Additional agents used:
+    
     voltagrnt-qa-sec:code-reviewer
     voltagent-qa-sec:security-auditor
 
@@ -47,6 +50,13 @@ During sharing, another app may save it and be backed up somewhere, defeating th
 
 - `:sskr` — pure-JVM Kotlin crypto core (no Android dependency), JUnit-tested.
 - `:app` — Android application, depends on `:sskr`.
+
+## References
+
+- [https://en.wikipedia.org/wiki/Shamir%27s_secret_sharing](https://en.wikipedia.org/wiki/Shamir%27s_secret_sharing)
+- [https://github.com/BlockchainCommons/crypto-commons/blob/master/Docs/README.md](https://github.com/BlockchainCommons/crypto-commons/blob/master/Docs/README.md)
+- [https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki](https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki)
+- [https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml](https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml)
 
 ## License
 
