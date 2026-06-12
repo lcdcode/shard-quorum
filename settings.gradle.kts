@@ -23,6 +23,8 @@ dependencyResolutionManagement {
 rootProject.name = "ShardQuorum"
 
 // The crypto core is a pure-JVM module so it builds and unit-tests without the
-// Android toolchain (no aapt2, no emulator). The :app Android module will be
-// added later and will depend on :sskr.
+// Android toolchain (no aapt2, no emulator). :app is the Android UI and
+// depends on :sskr.
 include(":sskr")
+include(":qrcodegen")
+include(":app")
