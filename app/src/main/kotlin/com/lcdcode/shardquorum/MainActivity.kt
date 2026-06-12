@@ -4,8 +4,15 @@ import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.lcdcode.shardquorum.ui.HomeScreen
+import com.lcdcode.shardquorum.ui.create.CreateSecretScreen
 import com.lcdcode.shardquorum.ui.theme.ShardQuorumTheme
+
+private enum class Screen { HOME, CREATE }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -18,7 +25,11 @@ class MainActivity : ComponentActivity() {
         )
         setContent {
             ShardQuorumTheme {
-                HomeScreen()
+                var screen by remember { mutableStateOf(Screen.HOME) }
+                when (screen) {
+                    Screen.HOME -> HomeScreen(onCreate = { screen = Screen.CREATE })
+                    Screen.CREATE -> CreateSecretScreen(onExit = { screen = Screen.HOME })
+                }
             }
         }
     }

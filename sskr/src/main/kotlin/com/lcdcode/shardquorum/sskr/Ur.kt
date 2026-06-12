@@ -23,6 +23,16 @@ object Ur {
     const val UR_TYPE = "sskr"
     private const val UR_PREFIX = "ur:$UR_TYPE/"
 
+    /**
+     * ShardQuorum-proprietary UR type for the KEK envelope ciphertext (the
+     * SQKE blob from [KekEnvelope]). Not an IANA-registered type; the prefix
+     * is deliberately distinct from "ur:sskr/" so a generic SSKR scanner never
+     * misparses an envelope QR as a share. Format: untagged CBOR byte string
+     * rendered as minimal bytewords, same framing as [toUr].
+     */
+    const val ENVELOPE_UR_TYPE = "sq-env"
+    private const val ENVELOPE_UR_PREFIX = "ur:$ENVELOPE_UR_TYPE/"
+
     /** SSKR CBOR tag, IANA-registered as #6.40309. */
     private const val SSKR_CBOR_TAG = 40309
 
@@ -49,12 +59,21 @@ object Ur {
         decodeTaggedCbor(Bytewords.decode(text, Bytewords.Style.STANDARD))
 
     /** Recovers the raw serialized share from a "ur:sskr/..." string. */
-    fun fromUr(text: String): ByteArray {
+    fun fromUr(text: String): ByteArray = fromTypedUr(text, UR_PREFIX)
+
+    /** KEK envelope bytes as a "ur:sq-env/..." string (for QR codes). */
+    fun toEnvelopeUr(envelope: ByteArray): String =
+        ENVELOPE_UR_PREFIX + Bytewords.encode(untaggedCbor(envelope), Bytewords.Style.MINIMAL)
+
+    /** Recovers the KEK envelope bytes from a "ur:sq-env/..." string. */
+    fun fromEnvelopeUr(text: String): ByteArray = fromTypedUr(text, ENVELOPE_UR_PREFIX)
+
+    private fun fromTypedUr(text: String, prefix: String): ByteArray {
         val trimmed = text.trim()
-        require(trimmed.startsWith(UR_PREFIX, ignoreCase = true)) {
-            "not an SSKR UR: must start with \"$UR_PREFIX\""
+        require(trimmed.startsWith(prefix, ignoreCase = true)) {
+            "not a \"$prefix\" UR"
         }
-        val body = trimmed.substring(UR_PREFIX.length)
+        val body = trimmed.substring(prefix.length)
         return decodeUntaggedCbor(Bytewords.decode(body, Bytewords.Style.MINIMAL))
     }
 

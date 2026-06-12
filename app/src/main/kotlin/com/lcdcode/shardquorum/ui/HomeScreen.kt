@@ -24,7 +24,7 @@ import com.lcdcode.shardquorum.R
 import kotlinx.coroutines.launch
 
 @Composable
-fun HomeScreen() {
+fun HomeScreen(onCreate: () -> Unit) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val notImplemented = stringResource(R.string.home_not_implemented)
@@ -50,7 +50,7 @@ fun HomeScreen() {
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center,
             )
-            Button(onClick = showStub, modifier = Modifier.fillMaxWidth()) {
+            Button(onClick = onCreate, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.home_create))
             }
             OutlinedButton(onClick = showStub, modifier = Modifier.fillMaxWidth()) {

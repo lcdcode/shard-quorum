@@ -79,6 +79,30 @@ class UrTest {
       assertArrayEquals(specShare, Ur.fromUr(ur.uppercase()))
    }
 
+   // --- Envelope UR (ur:sq-env/, ShardQuorum-proprietary) ---
+
+   @Test
+   fun envelopeUrRoundTrips() {
+      val kek = KekEnvelope.generateKek(SecureRandom())
+      val envelope = KekEnvelope.seal(kek, "some secret".toByteArray(), SecureRandom())
+      val ur = Ur.toEnvelopeUr(envelope)
+      assertEquals("ur:sq-env/", ur.substring(0, 10))
+      assertArrayEquals(envelope, Ur.fromEnvelopeUr(ur))
+      assertArrayEquals(envelope, Ur.fromEnvelopeUr(ur.uppercase()))
+   }
+
+   @Test
+   fun envelopeAndShareUrTypesDoNotCrossDecode() {
+      val kek = KekEnvelope.generateKek(SecureRandom())
+      val envelope = KekEnvelope.seal(kek, "some secret".toByteArray(), SecureRandom())
+      assertThrows(IllegalArgumentException::class.java) {
+         Ur.fromUr(Ur.toEnvelopeUr(envelope))
+      }
+      assertThrows(IllegalArgumentException::class.java) {
+         Ur.fromEnvelopeUr(Ur.toUr(specShare))
+      }
+   }
+
    // --- Malformed input rejection ---
 
    @Test
