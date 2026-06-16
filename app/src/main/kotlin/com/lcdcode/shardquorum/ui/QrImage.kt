@@ -27,7 +27,7 @@ fun QrImage(content: String, contentDescription: String?, modifier: Modifier = M
         modifier = modifier
             .aspectRatio(1f)
             .background(Color.White)
-            .padding(12.dp),
+            .padding(8.dp),
         filterQuality = FilterQuality.None,
     )
 }

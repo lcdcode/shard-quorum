@@ -5,8 +5,10 @@ import com.lcdcode.shardquorum.sskr.Sskr
 import com.lcdcode.shardquorum.sskr.Ur
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CreateSecretViewModelTest {
@@ -169,6 +171,37 @@ class CreateSecretViewModelTest {
         vm.generate()
         val qr = requireNotNull(vm.shards).first().shareUrForQr
         assertEquals(qr.uppercase(), qr)
+    }
+
+    @Test
+    fun shareTextCarriesPayloadButNotTheName() {
+        val vm = viewModel {
+            name = "My bank PIN"
+            secretInput = "hunter2!"
+        }
+        vm.generate()
+        val page = requireNotNull(vm.shards).first()
+        val text = CreateSecretViewModel.shareText(page)
+
+        assertTrue(text.contains("shard 1 of 5"))
+        assertTrue(text.contains(page.shareBytewords))
+        assertTrue(text.contains(page.shareUrForQr.lowercase()))
+        // KEK mode: envelope must travel with the shard.
+        assertTrue(text.contains(page.envelopeUrForQr!!.lowercase()))
+        // The secret's name must never appear in a shared shard.
+        assertFalse(text.contains("My bank PIN"))
+    }
+
+    @Test
+    fun directModeShareTextHasNoEnvelope() {
+        val vm = viewModel {
+            name = "Seed"
+            mode = SecretMode.DIRECT
+            secretInput = "ff00112233445566778899aabbccddee"
+        }
+        vm.generate()
+        val text = CreateSecretViewModel.shareText(requireNotNull(vm.shards).first())
+        assertFalse(text.contains("envelope"))
     }
 
     @Test

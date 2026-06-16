@@ -4,7 +4,36 @@
     <string name="home_tagline">Split a secret into shards. A quorum reconstructs it.</string>
     <string name="home_create">Create a new secret</string>
     <string name="home_recover">Recover from shards</string>
-    <string name="home_not_implemented">Not implemented yet</string>
+
+    <string name="recover_title">Recover secret</string>
+    <string name="recover_progress_empty">Add your first shard to begin.</string>
+    <string name="recover_progress">Collected %1$d of %2$d shards needed</string>
+    <string name="recover_shard_chip">Shard %1$d (tap to remove)</string>
+    <string name="recover_envelope_added">Recovery envelope added</string>
+    <string name="recover_clear_envelope">Remove</string>
+    <string name="recover_method_words">Type words</string>
+    <string name="recover_method_scan">Scan QR</string>
+    <string name="recover_method_image">From image</string>
+    <string name="recover_word_help">Type the words printed under a shard\'s QR code, separated by spaces.</string>
+    <string name="recover_word_label">Shard words</string>
+    <string name="recover_word_unknown">“%1$s” is not a valid word.</string>
+    <string name="recover_word_suggest">“%1$s” is not a valid word - did you mean: %2$s?</string>
+    <string name="recover_add_shard">Add shard</string>
+    <string name="recover_coming_soon">Coming soon</string>
+    <string name="recover_scan_placeholder">Camera scanning will be added once the scanner library is selected.</string>
+    <string name="recover_image_help">Pick a saved photo or screenshot of a shard\'s QR code.</string>
+    <string name="recover_pick_image">Choose image</string>
+    <string name="recover_button">Recover secret</string>
+    <string name="recover_error_unrecognized">Not a recognized shard or envelope.</string>
+    <string name="recover_error_different_split">That shard belongs to a different secret.</string>
+    <string name="recover_error_duplicate">That shard was already added.</string>
+    <string name="recover_error_not_enough">Add more shards to reach the quorum.</string>
+    <string name="recover_error_failed">Recovery failed - shards or envelope may be wrong or damaged.</string>
+    <string name="recover_error_image_decode">Could not find a QR code in that image. Try a clearer photo or type the words instead.</string>
+
+    <string name="recovered_title">Recovered secret</string>
+    <string name="recovered_warning">Shown only while this screen is open. It is not saved.</string>
+    <string name="recovered_done">Done</string>
 
     <string name="create_title">New secret</string>
     <string name="create_name_label">Secret name</string>
@@ -25,9 +54,21 @@
     <string name="create_error_hex_invalid">Not valid hex.</string>
     <string name="create_error_hex_length">Direct mode needs 16-32 bytes (32-64 hex digits, even byte count).</string>
 
-    <string name="shard_page_title">Shard %1$d of %2$d</string>
+    <string name="shard_showing">Showing shard %1$d of %2$d</string>
     <string name="shard_page_scheme">Any %1$d of %2$d shards reconstruct the secret</string>
     <string name="shard_qr_description">QR code of this shard</string>
+    <string name="shard_nav_prev">Previous</string>
+    <string name="shard_nav_next">Next</string>
+    <string name="shard_confirm_title">All shards recorded?</string>
+    <string name="shard_confirm_message">Make sure every one of the %1$d shards has been written down or scanned. For your security, they will not be shown again.</string>
+    <string name="shard_confirm_yes">Yes, I\'m done</string>
+    <string name="shard_confirm_no">Go back</string>
+    <string name="shard_share">Share this shard</string>
+    <string name="shard_share_chooser">Share shard via</string>
+    <string name="shard_share_warning_title">Share each shard differently</string>
+    <string name="shard_share_warning_message">Send each shard a different way, to a different person or place. If one app, account, or person ends up holding enough shards, they can rebuild your secret.\n\nSharing hands this shard to another app, which may back it up or sync it to the cloud. Email and text messages send it in clear text. When you can, choose “Save to file” or an offline transfer instead.</string>
+    <string name="shard_share_warning_continue">I understand, share</string>
+    <string name="shard_share_warning_cancel">Cancel</string>
     <string name="shard_envelope_heading">Recovery envelope</string>
     <string name="shard_envelope_explanation">Keep a copy of this envelope with every shard. Shards alone cannot recover the secret; the envelope alone reveals nothing.</string>
     <string name="shard_envelope_qr_description">QR code of the encrypted recovery envelope</string>

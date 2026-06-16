@@ -1,0 +1,169 @@
+package com.lcdcode.shardquorum.ui.recover
+
+import com.lcdcode.shardquorum.qr.QrDecodeException
+import com.lcdcode.shardquorum.qr.QrDecoder
+import com.lcdcode.shardquorum.qr.UnavailableQrDecoder
+import com.lcdcode.shardquorum.sskr.KekEnvelope
+import com.lcdcode.shardquorum.sskr.Sskr
+import com.lcdcode.shardquorum.sskr.Ur
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.security.SecureRandom
+
+class RecoverViewModelTest {
+
+    private val random = SecureRandom()
+
+    // --- KEK-mode recovery (shares + envelope) ---
+
+    @Test
+    fun recoversKekSecretFromShareAndEnvelopeUrs() {
+        val secret = "correct horse battery staple"
+        val protected = KekEnvelope.protect(3, 5, secret.toByteArray(), random)
+        val vm = RecoverViewModel()
+
+        // Add a threshold of shares via their QR strings, in scrambled order.
+        listOf(4, 1, 2).forEach { vm.addInput(Ur.toUr(protected.shares[it])) }
+        assertEquals(3, vm.threshold)
+        assertFalse(vm.canRecover.not()) // 3 of 3 collected
+        vm.addInput(Ur.toEnvelopeUr(protected.envelope))
+        assertTrue(vm.hasEnvelope)
+
+        vm.recover()
+        assertNull(vm.error)
+        assertEquals(RecoveredSecret(secret, isHex = false), vm.result)
+    }
+
+    @Test
+    fun mixedInputMethodsCombine() {
+        // One share typed as bytewords, one scanned as UR - same split.
+        val protected = KekEnvelope.protect(2, 3, "s3cret".toByteArray(), random)
+        val vm = RecoverViewModel()
+        vm.addInput(Ur.toStandardBytewords(protected.shares[0]))
+        vm.addInput(Ur.toUr(protected.shares[2]))
+        vm.addInput(Ur.toEnvelopeUr(protected.envelope))
+        vm.recover()
+        assertEquals("s3cret", vm.result?.display)
+    }
+
+    // --- Direct-mode recovery (shares only) ---
+
+    @Test
+    fun recoversDirectModeAsHex() {
+        val secretHex = "ff00112233445566778899aabbccddee"
+        val secret = ByteArray(16) { secretHex.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
+        val shares = Sskr.generate(2, 3, secret, random)
+        val vm = RecoverViewModel()
+        vm.addInput(Ur.toUr(shares[0]))
+        vm.addInput(Ur.toUr(shares[1]))
+        assertTrue(vm.canRecover)
+        vm.recover()
+        assertNull(vm.error)
+        assertEquals(RecoveredSecret(secretHex, isHex = true), vm.result)
+    }
+
+    // --- Collection rules ---
+
+    @Test
+    fun rejectsSharesFromDifferentSplits() {
+        val a = Sskr.generate(2, 3, ByteArray(16) { 1 }, random)
+        val b = Sskr.generate(2, 3, ByteArray(16) { 2 }, random)
+        val vm = RecoverViewModel()
+        assertTrue(vm.addInput(Ur.toUr(a[0])))
+        assertFalse(vm.addInput(Ur.toUr(b[0])))
+        assertEquals(RecoverError.DIFFERENT_SPLIT, vm.error)
+        assertEquals(1, vm.shares.size)
+    }
+
+    @Test
+    fun ignoresDuplicateShard() {
+        val shares = Sskr.generate(2, 3, ByteArray(16) { 1 }, random)
+        val vm = RecoverViewModel()
+        assertTrue(vm.addInput(Ur.toUr(shares[0])))
+        assertFalse(vm.addInput(Ur.toUr(shares[0])))
+        assertEquals(RecoverError.DUPLICATE_SHARD, vm.error)
+        assertEquals(1, vm.shares.size)
+    }
+
+    @Test
+    fun rejectsUnrecognizedInput() {
+        val vm = RecoverViewModel()
+        assertFalse(vm.addInput("this is not a shard"))
+        assertEquals(RecoverError.UNRECOGNIZED_INPUT, vm.error)
+    }
+
+    @Test
+    fun recoverBelowThresholdFails() {
+        val shares = Sskr.generate(3, 5, ByteArray(16) { 1 }, random)
+        val vm = RecoverViewModel()
+        vm.addInput(Ur.toUr(shares[0]))
+        vm.addInput(Ur.toUr(shares[1]))
+        assertFalse(vm.canRecover)
+        vm.recover()
+        assertEquals(RecoverError.NOT_ENOUGH_SHARDS, vm.error)
+        assertNull(vm.result)
+    }
+
+    @Test
+    fun removeShardAndClearEnvelopeWork() {
+        val protected = KekEnvelope.protect(2, 3, "x".toByteArray(), random)
+        val vm = RecoverViewModel()
+        vm.addInput(Ur.toUr(protected.shares[0]))
+        vm.addInput(Ur.toUr(protected.shares[1]))
+        vm.addInput(Ur.toEnvelopeUr(protected.envelope))
+        vm.removeShardAt(protected.shares[0].let {
+            com.lcdcode.shardquorum.sskr.SskrShare.deserialize(it).memberIndex
+        })
+        assertEquals(1, vm.shares.size)
+        vm.clearEnvelope()
+        assertFalse(vm.hasEnvelope)
+    }
+
+    // --- Image path (stubbed decoder) ---
+
+    @Test
+    fun imageDecodeReportsFailureWhenDecoderThrows() {
+        // A decoder that finds no QR (here the always-throwing stub) surfaces a
+        // decode failure, not a crash.
+        val vm = RecoverViewModel()
+        assertFalse(vm.addFromImage(ByteArray(8), UnavailableQrDecoder()))
+        assertEquals(RecoverError.IMAGE_DECODE_FAILED, vm.error)
+    }
+
+    @Test
+    fun imageDecodeFilesResultFromWorkingDecoder() {
+        val shares = Sskr.generate(2, 3, ByteArray(16) { 1 }, random)
+        val fakeDecoder = QrDecoder { Ur.toUr(shares[0]) }
+        val vm = RecoverViewModel()
+        assertTrue(vm.addFromImage(ByteArray(8), fakeDecoder))
+        assertEquals(1, vm.shares.size)
+    }
+
+    // --- Spellcheck ---
+
+    @Test
+    fun spellcheckFlagsBadWordsWithSuggestions() {
+        val checks = RecoverViewModel.spellcheck("able axes zzzz")
+        assertEquals(3, checks.size)
+        assertTrue(checks[0].recognized)
+        assertFalse(checks[1].recognized)
+        assertTrue(checks[1].suggestions.contains("axis"))
+        assertFalse(checks[2].recognized)
+        assertTrue(checks[2].suggestions.isNotEmpty())
+    }
+
+    @Test
+    fun resetClearsState() {
+        val shares = Sskr.generate(2, 3, ByteArray(16) { 1 }, random)
+        val vm = RecoverViewModel()
+        vm.addInput(Ur.toUr(shares[0]))
+        vm.reset()
+        assertTrue(vm.shares.isEmpty())
+        assertNull(vm.result)
+        assertNull(vm.error)
+        assertNull(vm.threshold)
+    }
+}

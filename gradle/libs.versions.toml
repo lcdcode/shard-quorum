@@ -8,6 +8,10 @@ coreKtx = "1.13.1"
 lifecycle = "2.8.4"
 activityCompose = "1.9.2"
 composeBom = "2024.09.03"
+# zxing CORE only (not :javase, which needs java.awt). Pure-JVM, memory-safe,
+# Apache-2.0, still bugfixed (3.5.4 Nov 2025). Used for QR DECODING only;
+# generation stays on vendored Nayuki. No native code, no F-Droid build pain.
+zxingCore = "3.5.4"
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
@@ -27,3 +31,4 @@ androidx-compose-ui-graphics = { group = "androidx.compose.ui", name = "ui-graph
 androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
 androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxingCore" }

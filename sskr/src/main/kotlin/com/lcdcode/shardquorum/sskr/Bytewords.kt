@@ -108,6 +108,51 @@ object Bytewords {
         return out
     }
 
+    /** True if [token] is one of the 256 Bytewords (case-insensitive full word). */
+    fun isWord(token: String): Boolean =
+        wordToByte.containsKey(token.trim().lowercase())
+
+    /** Immutable view of the 256-word list; index == byte value. */
+    fun wordList(): List<String> = WORDS
+
+    /**
+     * Up to [limit] dictionary words closest to [token], for transcription
+     * spellcheck suggestions. An exact match returns just that word. Ranking
+     * prefers words sharing [token]'s first and last letter (the pair that
+     * uniquely identifies a Byteword) and then the smallest edit distance.
+     */
+    fun suggestions(token: String, limit: Int = 3): List<String> {
+        val key = token.trim().lowercase()
+        if (key.isEmpty()) return emptyList()
+        if (wordToByte.containsKey(key)) return listOf(key)
+        return WORDS
+            .map { it to score(key, it) }
+            .sortedWith(compareBy({ it.second.first }, { it.second.second }))
+            .take(limit)
+            .map { it.first }
+    }
+
+    // (first/last-letter mismatches 0..2, edit distance) - lower sorts closer.
+    private fun score(token: String, word: String): Pair<Int, Int> {
+        val ends = (if (token.first() != word.first()) 1 else 0) +
+            (if (token.last() != word.last()) 1 else 0)
+        return ends to levenshtein(token, word)
+    }
+
+    private fun levenshtein(a: String, b: String): Int {
+        val prev = IntArray(b.length + 1) { it }
+        val curr = IntArray(b.length + 1)
+        for (i in 1..a.length) {
+            curr[0] = i
+            for (j in 1..b.length) {
+                val cost = if (a[i - 1] == b[j - 1]) 0 else 1
+                curr[j] = minOf(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost)
+            }
+            System.arraycopy(curr, 0, prev, 0, curr.size)
+        }
+        return prev[b.length]
+    }
+
     /** CRC-32 over [payload], emitted big-endian (network order) per the spec. */
     private fun checksum(payload: ByteArray): ByteArray {
         val crc = CRC32().apply { update(payload) }.value

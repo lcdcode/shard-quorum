@@ -8,35 +8,22 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.lcdcode.shardquorum.R
-import kotlinx.coroutines.launch
 
 @Composable
-fun HomeScreen(onCreate: () -> Unit) {
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-    val notImplemented = stringResource(R.string.home_not_implemented)
-    val showStub: () -> Unit = {
-        scope.launch { snackbarHostState.showSnackbar(notImplemented) }
-    }
-
-    Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { padding ->
+fun HomeScreen(onCreate: () -> Unit, onRecover: () -> Unit) {
+    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .padding(horizontal = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -53,7 +40,7 @@ fun HomeScreen(onCreate: () -> Unit) {
             Button(onClick = onCreate, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.home_create))
             }
-            OutlinedButton(onClick = showStub, modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(onClick = onRecover, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.home_recover))
             }
         }

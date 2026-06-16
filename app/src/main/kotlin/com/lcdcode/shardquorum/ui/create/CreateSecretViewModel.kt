@@ -148,6 +148,29 @@ class CreateSecretViewModel : ViewModel() {
         const val DEFAULT_THRESHOLD = 3
         const val DEFAULT_SHARE_COUNT = 5
 
+        /**
+         * Plain-text rendering of one shard for the Android share sheet. Carries
+         * the recoverable payload (UR + words, plus the envelope in KEK mode) but
+         * deliberately NOT the secret's name - sharing a labeled shard would leak
+         * what it protects. The UR is lowercased back to canonical form.
+         */
+        fun shareText(page: ShardPage): String = buildString {
+            appendLine("ShardQuorum shard ${page.index} of ${page.count}")
+            appendLine(
+                "Any ${page.threshold} of ${page.count} of these shards together can " +
+                    "rebuild the secret. Keep this shard private and apart from the others.",
+            )
+            appendLine()
+            appendLine("Shard (scan as a QR code, or type the words):")
+            appendLine(page.shareUrForQr.lowercase())
+            appendLine(page.shareBytewords)
+            page.envelopeUrForQr?.let { envelope ->
+                appendLine()
+                appendLine("Recovery envelope (needed to rebuild; keep it with this shard):")
+                appendLine(envelope.lowercase())
+            }
+        }
+
         /** Strict hex parse: whitespace tolerated, returns null on any other defect. */
         fun parseHex(text: String): ByteArray? {
             val clean = text.filterNot(Char::isWhitespace)

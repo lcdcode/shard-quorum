@@ -1,5 +1,6 @@
 package com.lcdcode.shardquorum.ui.create
 
+import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -7,20 +8,27 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
@@ -31,23 +39,26 @@ import com.lcdcode.shardquorum.ui.QrImage
 
 @Composable
 fun CreateSecretScreen(onExit: () -> Unit, viewModel: CreateSecretViewModel = viewModel()) {
-    val shards = viewModel.shards
-    if (shards == null) {
-        BackHandler {
-            viewModel.reset()
-            onExit()
-        }
-        ParamsForm(viewModel)
-    } else {
-        // Back from the shard pages returns to the form, keeping the inputs.
-        BackHandler { viewModel.discardShards() }
-        ShardPager(
-            shards = shards,
-            onDone = {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+    ) {
+        val shards = viewModel.shards
+        if (shards == null) {
+            BackHandler {
                 viewModel.reset()
                 onExit()
-            },
-        )
+            }
+            ParamsForm(viewModel)
+        } else {
+            ShardViewer(
+                shards = shards,
+                onDone = {
+                    viewModel.reset()
+                    onExit()
+                },
+            )
+        }
     }
 }
 
@@ -164,18 +175,109 @@ private fun QuorumStepper(label: String, value: Int, onChange: (Int) -> Unit) {
     }
 }
 
+/**
+ * Shows one shard at a time with Previous/Next navigation. Leaving the viewer
+ * (Done or system back) is guarded by a confirmation, because the shards are
+ * shown only once and cannot be recovered from the app afterwards.
+ */
 @Composable
-private fun ShardPager(shards: List<ShardPage>, onDone: () -> Unit) {
-    val pagerState = rememberPagerState(pageCount = { shards.size })
-    Column(modifier = Modifier.fillMaxSize()) {
-        HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
-            ShardPageContent(shards[page])
+private fun ShardViewer(shards: List<ShardPage>, onDone: () -> Unit) {
+    var index by rememberSaveable { mutableIntStateOf(0) }
+    var showConfirm by rememberSaveable { mutableStateOf(false) }
+    var showShareWarning by rememberSaveable { mutableStateOf(false) }
+    var shareWarningAcknowledged by rememberSaveable { mutableStateOf(false) }
+    val current = shards[index]
+    val context = LocalContext.current
+
+    fun launchShare() {
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, CreateSecretViewModel.shareText(current))
         }
-        Button(
-            onClick = onDone,
+        context.startActivity(
+            Intent.createChooser(send, context.getString(R.string.shard_share_chooser)),
+        )
+    }
+
+    BackHandler { showConfirm = true }
+
+    if (showConfirm) {
+        ConfirmRecordedDialog(
+            shardCount = shards.size,
+            onConfirm = {
+                showConfirm = false
+                onDone()
+            },
+            onDismiss = { showConfirm = false },
+        )
+    }
+
+    if (showShareWarning) {
+        ShareWarningDialog(
+            onConfirm = {
+                showShareWarning = false
+                shareWarningAcknowledged = true
+                launchShare()
+            },
+            onDismiss = { showShareWarning = false },
+        )
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Text(
+            text = stringResource(R.string.shard_showing, current.index, current.count),
+            style = MaterialTheme.typography.headlineSmall,
+            textAlign = TextAlign.Center,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(24.dp),
+                .padding(top = 16.dp, start = 24.dp, end = 24.dp),
+        )
+
+        ShardPageContent(
+            shard = current,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            OutlinedButton(
+                onClick = { if (index > 0) index-- },
+                enabled = index > 0,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(stringResource(R.string.shard_nav_prev))
+            }
+            OutlinedButton(
+                onClick = { if (index < shards.lastIndex) index++ },
+                enabled = index < shards.lastIndex,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(stringResource(R.string.shard_nav_next))
+            }
+        }
+
+        OutlinedButton(
+            onClick = { if (shareWarningAcknowledged) launchShare() else showShareWarning = true },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 8.dp),
+        ) {
+            Text(stringResource(R.string.shard_share))
+        }
+
+        Button(
+            onClick = { showConfirm = true },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 24.dp),
         ) {
             Text(stringResource(R.string.create_done))
         }
@@ -183,19 +285,57 @@ private fun ShardPager(shards: List<ShardPage>, onDone: () -> Unit) {
 }
 
 @Composable
-private fun ShardPageContent(shard: ShardPage) {
+private fun ShareWarningDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.shard_share_warning_title)) },
+        text = { Text(stringResource(R.string.shard_share_warning_message)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.shard_share_warning_continue))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.shard_share_warning_cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun ConfirmRecordedDialog(shardCount: Int, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.shard_confirm_title)) },
+        text = { Text(stringResource(R.string.shard_confirm_message, shardCount)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.shard_confirm_yes))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.shard_confirm_no))
+            }
+        },
+    )
+}
+
+@Composable
+private fun ShardPageContent(shard: ShardPage, modifier: Modifier = Modifier) {
+    // With an envelope QR there are two codes to fit; shrink both so the pair
+    // stays on screen without scrolling. A single code can be a little larger.
+    val hasEnvelope = shard.envelopeUrForQr != null
+    val qrFraction = if (hasEnvelope) 0.5f else 0.62f
+
     Column(
-        modifier = Modifier
-            .fillMaxSize()
+        modifier = modifier
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = 24.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            text = stringResource(R.string.shard_page_title, shard.index, shard.count),
-            style = MaterialTheme.typography.headlineSmall,
-        )
         Text(
             text = stringResource(R.string.shard_page_scheme, shard.threshold, shard.count),
             style = MaterialTheme.typography.bodyMedium,
@@ -203,7 +343,7 @@ private fun ShardPageContent(shard: ShardPage) {
         QrImage(
             content = shard.shareUrForQr,
             contentDescription = stringResource(R.string.shard_qr_description),
-            modifier = Modifier.fillMaxWidth(0.7f),
+            modifier = Modifier.fillMaxWidth(qrFraction),
         )
         Text(
             text = shard.shareBytewords,
@@ -225,7 +365,7 @@ private fun ShardPageContent(shard: ShardPage) {
             QrImage(
                 content = envelopeUr,
                 contentDescription = stringResource(R.string.shard_envelope_qr_description),
-                modifier = Modifier.fillMaxWidth(0.7f),
+                modifier = Modifier.fillMaxWidth(qrFraction),
             )
         }
     }
