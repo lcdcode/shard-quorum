@@ -8,16 +8,17 @@ package com.lcdcode.shardquorum.qr
  */
 fun interface QrDecoder {
     /**
-     * Returns the decoded text of the single QR code in [imageBytes].
+     * Returns the decoded text of every QR code found in [imageBytes] - more
+     * than one when a saved sheet bundles, e.g., a shard QR and an envelope QR.
      * @throws QrDecodeException if no QR is found or decoding is unavailable.
      */
-    fun decode(imageBytes: ByteArray): String
+    fun decode(imageBytes: ByteArray): List<String>
 }
 
 class QrDecodeException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 /** Placeholder decoder until a scanner library is wired in; always fails. */
 class UnavailableQrDecoder : QrDecoder {
-    override fun decode(imageBytes: ByteArray): String =
+    override fun decode(imageBytes: ByteArray): List<String> =
         throw QrDecodeException("QR decoding is not implemented yet")
 }

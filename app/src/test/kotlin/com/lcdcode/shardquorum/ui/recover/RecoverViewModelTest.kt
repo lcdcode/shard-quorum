@@ -138,10 +138,26 @@ class RecoverViewModelTest {
     @Test
     fun imageDecodeFilesResultFromWorkingDecoder() {
         val shares = Sskr.generate(2, 3, ByteArray(16) { 1 }, random)
-        val fakeDecoder = QrDecoder { Ur.toUr(shares[0]) }
+        val fakeDecoder = QrDecoder { listOf(Ur.toUr(shares[0])) }
         val vm = RecoverViewModel()
         assertTrue(vm.addFromImage(ByteArray(8), fakeDecoder))
         assertEquals(1, vm.shares.size)
+    }
+
+    @Test
+    fun bundledImageFilesBothShardAndEnvelope() {
+        // A saved sheet PNG holds two QRs: the shard and the recovery envelope.
+        val protected = KekEnvelope.protect(2, 3, "bundled".toByteArray(), random)
+        val bundledDecoder = QrDecoder {
+            listOf(
+                Ur.toUr(protected.shares[0]),
+                Ur.toEnvelopeUr(protected.envelope),
+            )
+        }
+        val vm = RecoverViewModel()
+        assertTrue(vm.addFromImage(ByteArray(8), bundledDecoder))
+        assertEquals(1, vm.shares.size)
+        assertTrue(vm.hasEnvelope)
     }
 
     // --- Bundle import (saved words file / pasted blob) ---

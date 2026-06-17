@@ -123,15 +123,15 @@ class RecoverViewModel : ViewModel() {
         return added > 0
     }
 
-    /** Decodes a picked image to its QR text, then files it. */
+    /** Decodes every QR in a picked image, then files them all. */
     fun addFromImage(imageBytes: ByteArray, decoder: QrDecoder): Boolean {
-        val text = try {
+        val texts = try {
             decoder.decode(imageBytes)
         } catch (e: QrDecodeException) {
             error = RecoverError.IMAGE_DECODE_FAILED
             return false
         }
-        return addInput(text)
+        return addBundle(texts.joinToString("\n"))
     }
 
     private enum class FileOutcome { ADDED, ENVELOPE_SET, DUPLICATE, DIFFERENT_SPLIT }

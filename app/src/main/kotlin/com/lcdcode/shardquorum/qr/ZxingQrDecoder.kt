@@ -7,7 +7,7 @@ import com.google.zxing.DecodeHintType
 import com.google.zxing.RGBLuminanceSource
 import com.google.zxing.ReaderException
 import com.google.zxing.common.HybridBinarizer
-import com.google.zxing.qrcode.QRCodeReader
+import com.google.zxing.multi.qrcode.QRCodeMultiReader
 
 /**
  * Decodes a QR code from an encoded image file (PNG/JPEG/etc.) using the
@@ -21,7 +21,7 @@ import com.google.zxing.qrcode.QRCodeReader
  */
 class ZxingQrDecoder : QrDecoder {
 
-    override fun decode(imageBytes: ByteArray): String {
+    override fun decode(imageBytes: ByteArray): List<String> {
         val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
             ?: throw QrDecodeException("could not read image data")
         try {
@@ -33,7 +33,9 @@ class ZxingQrDecoder : QrDecoder {
             val source = RGBLuminanceSource(width, height, pixels)
             val binary = BinaryBitmap(HybridBinarizer(source))
             return try {
-                QRCodeReader().decode(binary, HINTS).text
+                // decodeMultiple finds every QR in the image (e.g. a bundled
+                // shard + envelope sheet), throwing when none are present.
+                QRCodeMultiReader().decodeMultiple(binary, HINTS).map { it.text }
             } catch (e: ReaderException) {
                 throw QrDecodeException("no QR code found in image", e)
             }
