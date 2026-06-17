@@ -2,6 +2,8 @@ package com.lcdcode.shardquorum.ui.create
 
 import android.content.Intent
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -35,6 +38,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lcdcode.shardquorum.R
+import com.lcdcode.shardquorum.qr.QrPng
 import com.lcdcode.shardquorum.ui.QrImage
 
 @Composable
@@ -186,8 +190,34 @@ private fun ShardViewer(shards: List<ShardPage>, onDone: () -> Unit) {
     var showConfirm by rememberSaveable { mutableStateOf(false) }
     var showShareWarning by rememberSaveable { mutableStateOf(false) }
     var shareWarningAcknowledged by rememberSaveable { mutableStateOf(false) }
+    var showSaveOptions by rememberSaveable { mutableStateOf(false) }
     val current = shards[index]
     val context = LocalContext.current
+
+    // CreateDocument hands back a destination uri; we write the payload that was
+    // staged just before launching, then clear it.
+    var pendingPng by remember { mutableStateOf<ByteArray?>(null) }
+    var pendingText by remember { mutableStateOf<String?>(null) }
+    val savePngLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("image/png"),
+    ) { uri ->
+        val bytes = pendingPng
+        pendingPng = null
+        if (uri != null && bytes != null) {
+            context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
+        }
+    }
+    val saveTextLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain"),
+    ) { uri ->
+        val text = pendingText
+        pendingText = null
+        if (uri != null && text != null) {
+            context.contentResolver.openOutputStream(uri)?.use {
+                it.write(text.toByteArray(Charsets.UTF_8))
+            }
+        }
+    }
 
     fun launchShare() {
         val send = Intent(Intent.ACTION_SEND).apply {
@@ -198,6 +228,8 @@ private fun ShardViewer(shards: List<ShardPage>, onDone: () -> Unit) {
             Intent.createChooser(send, context.getString(R.string.shard_share_chooser)),
         )
     }
+
+    val baseName = "shardquorum-shard-${current.index}-of-${current.count}"
 
     BackHandler { showConfirm = true }
 
@@ -220,6 +252,30 @@ private fun ShardViewer(shards: List<ShardPage>, onDone: () -> Unit) {
                 launchShare()
             },
             onDismiss = { showShareWarning = false },
+        )
+    }
+
+    if (showSaveOptions) {
+        SaveOptionsDialog(
+            hasEnvelope = current.envelopeUrForQr != null,
+            onSaveQr = {
+                showSaveOptions = false
+                pendingPng = QrPng.encode(current.shareUrForQr)
+                savePngLauncher.launch("$baseName.png")
+            },
+            onSaveWords = {
+                showSaveOptions = false
+                pendingText = CreateSecretViewModel.shareText(current)
+                saveTextLauncher.launch("$baseName.txt")
+            },
+            onSaveEnvelope = {
+                showSaveOptions = false
+                current.envelopeUrForQr?.let {
+                    pendingPng = QrPng.encode(it)
+                    savePngLauncher.launch("shardquorum-envelope.png")
+                }
+            },
+            onDismiss = { showSaveOptions = false },
         )
     }
 
@@ -262,14 +318,25 @@ private fun ShardViewer(shards: List<ShardPage>, onDone: () -> Unit) {
             }
         }
 
-        OutlinedButton(
-            onClick = { if (shareWarningAcknowledged) launchShare() else showShareWarning = true },
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(stringResource(R.string.shard_share))
+            OutlinedButton(
+                onClick = { showSaveOptions = true },
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(stringResource(R.string.shard_save))
+            }
+            OutlinedButton(
+                onClick = { if (shareWarningAcknowledged) launchShare() else showShareWarning = true },
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(stringResource(R.string.shard_share))
+            }
         }
 
         Button(
@@ -282,6 +349,41 @@ private fun ShardViewer(shards: List<ShardPage>, onDone: () -> Unit) {
             Text(stringResource(R.string.create_done))
         }
     }
+}
+
+@Composable
+private fun SaveOptionsDialog(
+    hasEnvelope: Boolean,
+    onSaveQr: () -> Unit,
+    onSaveWords: () -> Unit,
+    onSaveEnvelope: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.shard_save_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onSaveQr, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.shard_save_qr))
+                }
+                OutlinedButton(onClick = onSaveWords, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.shard_save_words))
+                }
+                if (hasEnvelope) {
+                    OutlinedButton(onClick = onSaveEnvelope, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.shard_save_envelope))
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.shard_save_cancel))
+            }
+        },
+    )
 }
 
 @Composable

@@ -3,6 +3,8 @@ package com.lcdcode.shardquorum.ui.recover
 import com.lcdcode.shardquorum.qr.QrDecodeException
 import com.lcdcode.shardquorum.qr.QrDecoder
 import com.lcdcode.shardquorum.qr.UnavailableQrDecoder
+import com.lcdcode.shardquorum.ui.create.CreateSecretViewModel
+import com.lcdcode.shardquorum.ui.create.ShardPage
 import com.lcdcode.shardquorum.sskr.KekEnvelope
 import com.lcdcode.shardquorum.sskr.Sskr
 import com.lcdcode.shardquorum.sskr.Ur
@@ -140,6 +142,56 @@ class RecoverViewModelTest {
         val vm = RecoverViewModel()
         assertTrue(vm.addFromImage(ByteArray(8), fakeDecoder))
         assertEquals(1, vm.shares.size)
+    }
+
+    // --- Bundle import (saved words file / pasted blob) ---
+
+    @Test
+    fun addBundleRoundTripsCreateShareText() {
+        // The exact text the create flow writes to a saved .txt must re-import:
+        // it should pull out both the share line and the envelope line.
+        val protected = KekEnvelope.protect(2, 3, "vault key".toByteArray(), random)
+        val envelopeUr = Ur.toEnvelopeUr(protected.envelope).uppercase()
+        val vm = RecoverViewModel()
+        for (i in 0..1) {
+            val share = protected.shares[i]
+            val page = ShardPage(
+                index = i + 1,
+                count = 3,
+                threshold = 2,
+                secretName = "ignored",
+                shareUrForQr = Ur.toUr(share).uppercase(),
+                shareBytewords = Ur.toStandardBytewords(share),
+                envelopeUrForQr = envelopeUr,
+            )
+            assertTrue(vm.addBundle(CreateSecretViewModel.shareText(page)))
+        }
+        assertTrue(vm.hasEnvelope)
+        assertTrue(vm.canRecover)
+        vm.recover()
+        assertEquals("vault key", vm.result?.display)
+    }
+
+    @Test
+    fun addBundleSkipsHumanTextAndDuplicates() {
+        val shares = Sskr.generate(2, 3, ByteArray(16) { 1 }, random)
+        val blob = buildString {
+            appendLine("ShardQuorum shard 1 of 3")
+            appendLine("Any 2 of 3 shards rebuild the secret.")
+            appendLine(Ur.toUr(shares[0]).lowercase())
+            appendLine(Ur.toStandardBytewords(shares[0])) // same share, duplicate
+        }
+        val vm = RecoverViewModel()
+        assertTrue(vm.addBundle(blob))
+        assertEquals(1, vm.shares.size) // duplicate folded, human lines ignored
+        assertNull(vm.error)
+    }
+
+    @Test
+    fun addBundleRejectsTextWithNothingRecognizable() {
+        val vm = RecoverViewModel()
+        assertFalse(vm.addBundle("just some notes\nnothing to see here"))
+        assertEquals(RecoverError.UNRECOGNIZED_INPUT, vm.error)
     }
 
     // --- Spellcheck ---

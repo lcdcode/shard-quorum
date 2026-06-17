@@ -61,7 +61,7 @@ class RecoverViewModel : ViewModel() {
     val canRecover: Boolean
         get() = threshold?.let { shares.size >= it } ?: false
 
-    /** Parses and files a scanned/typed input. Returns true if accepted. */
+    /** Parses and files a single scanned/typed token. Returns true if accepted. */
     fun addInput(text: String): Boolean {
         error = null
         val parsed = try {
@@ -70,16 +70,60 @@ class RecoverViewModel : ViewModel() {
             error = RecoverError.UNRECOGNIZED_INPUT
             return false
         }
-        return when (parsed) {
-            is ShareImport.Envelope -> {
-                envelope = parsed.bytes
-                true
+        return when (file(parsed)) {
+            FileOutcome.ADDED, FileOutcome.ENVELOPE_SET -> true
+            FileOutcome.DUPLICATE -> {
+                error = RecoverError.DUPLICATE_SHARD
+                false
             }
-            is ShareImport.Share -> addShare(parsed)
+            FileOutcome.DIFFERENT_SPLIT -> {
+                error = RecoverError.DIFFERENT_SPLIT
+                false
+            }
         }
     }
 
-    /** Decodes a picked image to its QR text, then files it like any input. */
+    /**
+     * Lenient import for pasted text or a saved words file: files every line
+     * that parses (the share UR/words line and, in KEK mode, the envelope line),
+     * silently skipping human-readable text and duplicates. Returns true if at
+     * least one new item was added.
+     */
+    fun addBundle(text: String): Boolean {
+        error = null
+        // Single-line input (typed words, one UR) is parsed whole; multi-line
+        // blobs are scanned line by line.
+        val lines = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
+        val candidates = if (lines.size <= 1) listOf(text.trim()) else lines
+
+        var added = 0
+        var recognized = 0
+        var pendingError: RecoverError? = null
+        for (candidate in candidates) {
+            val parsed = try {
+                ShareReader.parse(candidate)
+            } catch (e: IllegalArgumentException) {
+                continue
+            }
+            recognized++
+            when (file(parsed)) {
+                FileOutcome.ADDED, FileOutcome.ENVELOPE_SET -> added++
+                FileOutcome.DUPLICATE -> {}
+                FileOutcome.DIFFERENT_SPLIT -> pendingError = RecoverError.DIFFERENT_SPLIT
+            }
+        }
+        if (recognized == 0) {
+            error = RecoverError.UNRECOGNIZED_INPUT
+            return false
+        }
+        if (added == 0 && pendingError != null) {
+            error = pendingError
+            return false
+        }
+        return added > 0
+    }
+
+    /** Decodes a picked image to its QR text, then files it. */
     fun addFromImage(imageBytes: ByteArray, decoder: QrDecoder): Boolean {
         val text = try {
             decoder.decode(imageBytes)
@@ -90,20 +134,28 @@ class RecoverViewModel : ViewModel() {
         return addInput(text)
     }
 
-    private fun addShare(share: ShareImport.Share): Boolean {
-        val existing = shares
-        if (existing.isNotEmpty() &&
-            existing.first().metadata.identifier != share.metadata.identifier
-        ) {
-            error = RecoverError.DIFFERENT_SPLIT
-            return false
+    private enum class FileOutcome { ADDED, ENVELOPE_SET, DUPLICATE, DIFFERENT_SPLIT }
+
+    /** Files a parsed input into [shares]/[envelope] without touching [error]. */
+    private fun file(parsed: ShareImport): FileOutcome = when (parsed) {
+        is ShareImport.Envelope -> {
+            envelope = parsed.bytes
+            FileOutcome.ENVELOPE_SET
         }
-        if (existing.any { it.metadata.memberIndex == share.metadata.memberIndex }) {
-            error = RecoverError.DUPLICATE_SHARD
-            return false
+        is ShareImport.Share -> {
+            val existing = shares
+            when {
+                existing.isNotEmpty() &&
+                    existing.first().metadata.identifier != parsed.metadata.identifier ->
+                    FileOutcome.DIFFERENT_SPLIT
+                existing.any { it.metadata.memberIndex == parsed.metadata.memberIndex } ->
+                    FileOutcome.DUPLICATE
+                else -> {
+                    shares = existing + parsed
+                    FileOutcome.ADDED
+                }
+            }
         }
-        shares = existing + share
-        return true
     }
 
     fun removeShardAt(memberIndex: Int) {

@@ -13,7 +13,7 @@
     <string name="recover_clear_envelope">Remove</string>
     <string name="recover_method_words">Type words</string>
     <string name="recover_method_scan">Scan QR</string>
-    <string name="recover_method_image">From image</string>
+    <string name="recover_method_file">Import file</string>
     <string name="recover_word_help">Type the words printed under a shard\'s QR code, separated by spaces.</string>
     <string name="recover_word_label">Shard words</string>
     <string name="recover_word_unknown">“%1$s” is not a valid word.</string>
@@ -21,8 +21,8 @@
     <string name="recover_add_shard">Add shard</string>
     <string name="recover_coming_soon">Coming soon</string>
     <string name="recover_scan_placeholder">Camera scanning will be added once the scanner library is selected.</string>
-    <string name="recover_image_help">Pick a saved photo or screenshot of a shard\'s QR code.</string>
-    <string name="recover_pick_image">Choose image</string>
+    <string name="recover_file_help">Import a saved shard file: a QR image (PNG) or a saved words text file.</string>
+    <string name="recover_pick_file">Choose file</string>
     <string name="recover_button">Recover secret</string>
     <string name="recover_error_unrecognized">Not a recognized shard or envelope.</string>
     <string name="recover_error_different_split">That shard belongs to a different secret.</string>
@@ -63,6 +63,12 @@
     <string name="shard_confirm_message">Make sure every one of the %1$d shards has been written down or scanned. For your security, they will not be shown again.</string>
     <string name="shard_confirm_yes">Yes, I\'m done</string>
     <string name="shard_confirm_no">Go back</string>
+    <string name="shard_save">Save…</string>
+    <string name="shard_save_title">Save this shard</string>
+    <string name="shard_save_qr">Save QR image (PNG)</string>
+    <string name="shard_save_words">Save words (text)</string>
+    <string name="shard_save_envelope">Save envelope QR (PNG)</string>
+    <string name="shard_save_cancel">Cancel</string>
     <string name="shard_share">Share this shard</string>
     <string name="shard_share_chooser">Share shard via</string>
     <string name="shard_share_warning_title">Share each shard differently</string>

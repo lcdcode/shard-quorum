@@ -34,7 +34,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lcdcode.shardquorum.R
 import com.lcdcode.shardquorum.qr.ZxingQrDecoder
 
-private enum class InputMethod { WORDS, SCAN, IMAGE }
+private enum class InputMethod { WORDS, SCAN, FILE }
 
 @Composable
 fun RecoverScreen(onExit: () -> Unit, viewModel: RecoverViewModel = viewModel()) {
@@ -111,7 +111,7 @@ private fun CollectionScreen(viewModel: RecoverViewModel) {
         when (method) {
             InputMethod.WORDS -> WordEntry(viewModel)
             InputMethod.SCAN -> ScanStub()
-            InputMethod.IMAGE -> ImagePicker(viewModel)
+            InputMethod.FILE -> FilePicker(viewModel)
         }
 
         viewModel.error?.let {
@@ -162,9 +162,9 @@ private fun MethodSelector(selected: InputMethod, onSelect: (InputMethod) -> Uni
             label = { Text(stringResource(R.string.recover_method_scan)) },
         )
         FilterChip(
-            selected = selected == InputMethod.IMAGE,
-            onClick = { onSelect(InputMethod.IMAGE) },
-            label = { Text(stringResource(R.string.recover_method_image)) },
+            selected = selected == InputMethod.FILE,
+            onClick = { onSelect(InputMethod.FILE) },
+            label = { Text(stringResource(R.string.recover_method_file)) },
         )
     }
 }
@@ -204,7 +204,7 @@ private fun WordEntry(viewModel: RecoverViewModel) {
         }
         Button(
             onClick = {
-                if (viewModel.addInput(text)) text = ""
+                if (viewModel.addBundle(text)) text = ""
             },
             enabled = ready,
             modifier = Modifier.fillMaxWidth(),
@@ -224,7 +224,7 @@ private fun ScanStub() {
 }
 
 @Composable
-private fun ImagePicker(viewModel: RecoverViewModel) {
+private fun FilePicker(viewModel: RecoverViewModel) {
     val context = LocalContext.current
     val decoder = remember { ZxingQrDecoder() }
     val launcher = rememberLauncherForActivityResult(
@@ -233,20 +233,25 @@ private fun ImagePicker(viewModel: RecoverViewModel) {
         if (uri != null) {
             val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
             if (bytes != null) {
-                viewModel.addFromImage(bytes, decoder)
+                val mime = context.contentResolver.getType(uri)
+                if (mime?.startsWith("image/") == true) {
+                    viewModel.addFromImage(bytes, decoder)
+                } else {
+                    viewModel.addBundle(bytes.toString(Charsets.UTF_8))
+                }
             }
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            text = stringResource(R.string.recover_image_help),
+            text = stringResource(R.string.recover_file_help),
             style = MaterialTheme.typography.bodyMedium,
         )
         OutlinedButton(
-            onClick = { launcher.launch("image/*") },
+            onClick = { launcher.launch("*/*") },
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(stringResource(R.string.recover_pick_image))
+            Text(stringResource(R.string.recover_pick_file))
         }
     }
 }
