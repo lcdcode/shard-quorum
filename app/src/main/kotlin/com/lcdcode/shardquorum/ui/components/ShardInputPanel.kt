@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -138,27 +140,50 @@ private fun CameraScannerPanel(onText: (String) -> Boolean) {
                 PackageManager.PERMISSION_GRANTED,
         )
     }
+    // Plain remember (not saveable): leaving the Scan tab closes the camera, and
+    // returning starts from the Start button rather than silently re-opening it.
+    var scanning by remember { mutableStateOf(false) }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { granted -> hasPermission = granted }
+    ) { granted ->
+        hasPermission = granted
+        scanning = granted
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (hasPermission) {
-            Text(
-                text = stringResource(R.string.recover_scan_help),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            CameraPreview(onDecoded = { onText(it) })
-        } else {
-            Text(
-                text = stringResource(R.string.recover_camera_rationale),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            OutlinedButton(
-                onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(R.string.recover_camera_grant))
+        when {
+            !hasPermission -> {
+                Text(
+                    text = stringResource(R.string.recover_camera_rationale),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                OutlinedButton(
+                    onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.recover_camera_grant))
+                }
+            }
+            scanning -> {
+                Text(
+                    text = stringResource(R.string.recover_scan_help),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                CameraPreview(onDecoded = { onText(it) })
+                OutlinedButton(
+                    onClick = { scanning = false },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.recover_scan_close))
+                }
+            }
+            else -> {
+                OutlinedButton(
+                    onClick = { scanning = true },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.recover_scan_start))
+                }
             }
         }
     }
@@ -204,7 +229,8 @@ private fun CameraPreview(onDecoded: (String) -> Unit) {
         factory = { previewView },
         modifier = Modifier
             .fillMaxWidth()
-            .height(300.dp),
+            .height(280.dp)
+            .clip(RoundedCornerShape(12.dp)),
     )
 }
 
