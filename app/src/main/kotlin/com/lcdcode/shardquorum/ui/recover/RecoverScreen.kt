@@ -30,17 +30,24 @@ import com.lcdcode.shardquorum.ui.components.ShardInputPanel
 @Composable
 fun RecoverScreen(onExit: () -> Unit, viewModel: RecoverViewModel = viewModel()) {
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        BackHandler {
-            viewModel.reset()
-            onExit()
-        }
         val result = viewModel.result
         if (result != null) {
-            RecoveredView(result, onDone = {
+            // Back from the result returns to collection (e.g. to add an
+            // envelope), keeping the shards already gathered.
+            BackHandler(onBack = viewModel::dismissResult)
+            RecoveredView(
+                result = result,
+                onDone = {
+                    viewModel.reset()
+                    onExit()
+                },
+                onAddEnvelope = viewModel::dismissResult,
+            )
+        } else {
+            BackHandler {
                 viewModel.reset()
                 onExit()
-            })
-        } else {
+            }
             CollectionScreen(viewModel)
         }
     }
@@ -134,7 +141,11 @@ private fun CollectedShardsRow(viewModel: RecoverViewModel) {
 }
 
 @Composable
-private fun RecoveredView(result: RecoveredSecret, onDone: () -> Unit) {
+private fun RecoveredView(
+    result: RecoveredSecret,
+    onDone: () -> Unit,
+    onAddEnvelope: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -146,6 +157,13 @@ private fun RecoveredView(result: RecoveredSecret, onDone: () -> Unit) {
             text = stringResource(R.string.recovered_title),
             style = MaterialTheme.typography.headlineMedium,
         )
+        if (result.maybeEncrypted) {
+            Text(
+                text = stringResource(R.string.recovered_maybe_encrypted),
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
         Text(
             text = stringResource(R.string.recovered_warning),
             style = MaterialTheme.typography.bodySmall,
@@ -155,6 +173,11 @@ private fun RecoveredView(result: RecoveredSecret, onDone: () -> Unit) {
             style = MaterialTheme.typography.bodyLarge,
             fontFamily = if (result.isHex) FontFamily.Monospace else FontFamily.Default,
         )
+        if (result.maybeEncrypted) {
+            OutlinedButton(onClick = onAddEnvelope, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.recovered_add_envelope))
+            }
+        }
         Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.recovered_done))
         }

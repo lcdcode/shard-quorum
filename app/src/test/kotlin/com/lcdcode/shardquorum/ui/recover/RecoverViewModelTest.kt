@@ -11,6 +11,7 @@ import com.lcdcode.shardquorum.sskr.Sskr
 import com.lcdcode.shardquorum.sskr.Ur
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -66,6 +67,62 @@ class RecoverViewModelTest {
         vm.recover()
         assertNull(vm.error)
         assertEquals(RecoveredSecret(secretHex, isHex = true), vm.result)
+    }
+
+    // --- KEK-vs-direct mode detection at recovery ---
+
+    @Test
+    fun kekSharesWithoutEnvelopeFlagMaybeEncrypted() {
+        // Recovering a KEK secret but forgetting the envelope yields
+        // the 32-byte KEK, which must be flagged rather than shown as the secret.
+        val protected = KekEnvelope.protect(2, 3, "real secret".toByteArray(), random)
+        val vm = RecoverViewModel()
+        vm.addInput(Ur.toUr(protected.shares[0]))
+        vm.addInput(Ur.toUr(protected.shares[1]))
+        vm.recover()
+        assertEquals(true, vm.result?.maybeEncrypted)
+        assertEquals(true, vm.result?.isHex)
+    }
+
+    @Test
+    fun kekSharesWithEnvelopeAreNotFlagged() {
+        val protected = KekEnvelope.protect(2, 3, "real secret".toByteArray(), random)
+        val vm = RecoverViewModel()
+        vm.addInput(Ur.toUr(protected.shares[0]))
+        vm.addInput(Ur.toUr(protected.shares[1]))
+        vm.addInput(Ur.toEnvelopeUr(protected.envelope))
+        vm.recover()
+        assertEquals("real secret", vm.result?.display)
+        assertEquals(false, vm.result?.maybeEncrypted)
+    }
+
+    @Test
+    fun shortDirectSecretIsNotFlagged() {
+        // A 16-byte direct secret cannot be a KEK, so no warning.
+        val shares = Sskr.generate(2, 3, ByteArray(16) { it.toByte() }, random)
+        val vm = RecoverViewModel()
+        vm.addInput(Ur.toUr(shares[0]))
+        vm.addInput(Ur.toUr(shares[1]))
+        vm.recover()
+        assertEquals(false, vm.result?.maybeEncrypted)
+        assertEquals(true, vm.result?.isHex)
+    }
+
+    @Test
+    fun dismissResultReturnsToCollectionKeepingShards() {
+        val protected = KekEnvelope.protect(2, 3, "x".toByteArray(), random)
+        val vm = RecoverViewModel()
+        vm.addInput(Ur.toUr(protected.shares[0]))
+        vm.addInput(Ur.toUr(protected.shares[1]))
+        vm.recover()
+        assertNotNull(vm.result)
+        vm.dismissResult()
+        assertNull(vm.result)
+        assertEquals(2, vm.shares.size) // shards kept so the envelope can be added
+        // Adding the envelope and recovering again yields the real secret.
+        vm.addInput(Ur.toEnvelopeUr(protected.envelope))
+        vm.recover()
+        assertEquals("x", vm.result?.display)
     }
 
     // --- Collection rules ---

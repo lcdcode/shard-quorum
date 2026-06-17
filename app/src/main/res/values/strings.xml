@@ -47,6 +47,8 @@
 
     <string name="recovered_title">Recovered secret</string>
     <string name="recovered_warning">Shown only while this screen is open. It is not saved.</string>
+    <string name="recovered_maybe_encrypted">This may be an encrypted secret\'s key, not the secret itself. If you created it with a recovery envelope (the default), add that envelope to decrypt. If you used direct mode (e.g. a wallet seed), the value below is your secret.</string>
+    <string name="recovered_add_envelope">Add recovery envelope</string>
     <string name="recovered_done">Done</string>
 
     <string name="create_title">New secret</string>

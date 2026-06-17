@@ -20,8 +20,13 @@ enum class RecoverError {
     IMAGE_DECODE_FAILED,
 }
 
-/** The reconstructed secret, ready to display. */
-data class RecoveredSecret(val display: String, val isHex: Boolean)
+/**
+ * The reconstructed secret, ready to display. [maybeEncrypted] is set when the
+ * shards combined to exactly a KEK-sized value and no envelope was supplied -
+ * i.e. this could be the raw KEK of an encrypted secret rather than the secret
+ * itself, so the UI must warn rather than present it as final.
+ */
+data class RecoveredSecret(val display: String, val isHex: Boolean, val maybeEncrypted: Boolean = false)
 
 /** One shard already collected, summarized for the UI list. */
 data class CollectedShard(val memberIndex: Int)
@@ -178,11 +183,24 @@ class RecoverViewModel : ViewModel() {
                 val secret = KekEnvelope.recover(currentEnvelope, shareBytes)
                 RecoveredSecret(secret.toString(Charsets.UTF_8), isHex = false)
             } else {
-                RecoveredSecret(Sskr.combine(shareBytes).toHex(), isHex = true)
+                val combined = Sskr.combine(shareBytes)
+                // A KEK is always exactly KEK_LENGTH bytes; a shorter combined
+                // value can only be a direct secret. A KEK-length value with no
+                // envelope is ambiguous - flag it so the UI warns.
+                RecoveredSecret(
+                    display = combined.toHex(),
+                    isHex = true,
+                    maybeEncrypted = combined.size == KekEnvelope.KEK_LENGTH,
+                )
             }
         } catch (e: IllegalArgumentException) {
             error = RecoverError.RECOVERY_FAILED
         }
+    }
+
+    /** Returns from the recovered-secret view to the collection screen. */
+    fun dismissResult() {
+        result = null
     }
 
     fun reset() {
