@@ -67,8 +67,9 @@
     <string name="shard_save_title">Save this shard</string>
     <string name="shard_save_qr">Save QR image (PNG)</string>
     <string name="shard_save_words">Save words (text)</string>
-    <string name="shard_save_envelope">Save envelope QR (PNG)</string>
     <string name="shard_save_cancel">Cancel</string>
+    <string name="png_label_shard">Shard %1$d of %2$d</string>
+    <string name="png_label_envelope">Recovery envelope</string>
     <string name="shard_share">Share this shard</string>
     <string name="shard_share_chooser">Share shard via</string>
     <string name="shard_share_warning_title">Share each shard differently</string>

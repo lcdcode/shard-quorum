@@ -257,23 +257,26 @@ private fun ShardViewer(shards: List<ShardPage>, onDone: () -> Unit) {
 
     if (showSaveOptions) {
         SaveOptionsDialog(
-            hasEnvelope = current.envelopeUrForQr != null,
             onSaveQr = {
                 showSaveOptions = false
-                pendingPng = QrPng.encode(current.shareUrForQr)
+                val sections = buildList {
+                    add(
+                        QrPng.LabeledQr(
+                            context.getString(R.string.png_label_shard, current.index, current.count),
+                            current.shareUrForQr,
+                        ),
+                    )
+                    current.envelopeUrForQr?.let {
+                        add(QrPng.LabeledQr(context.getString(R.string.png_label_envelope), it))
+                    }
+                }
+                pendingPng = QrPng.encodeSheet(sections)
                 savePngLauncher.launch("$baseName.png")
             },
             onSaveWords = {
                 showSaveOptions = false
                 pendingText = CreateSecretViewModel.shareText(current)
                 saveTextLauncher.launch("$baseName.txt")
-            },
-            onSaveEnvelope = {
-                showSaveOptions = false
-                current.envelopeUrForQr?.let {
-                    pendingPng = QrPng.encode(it)
-                    savePngLauncher.launch("shardquorum-envelope.png")
-                }
             },
             onDismiss = { showSaveOptions = false },
         )
@@ -353,10 +356,8 @@ private fun ShardViewer(shards: List<ShardPage>, onDone: () -> Unit) {
 
 @Composable
 private fun SaveOptionsDialog(
-    hasEnvelope: Boolean,
     onSaveQr: () -> Unit,
     onSaveWords: () -> Unit,
-    onSaveEnvelope: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     AlertDialog(
@@ -369,11 +370,6 @@ private fun SaveOptionsDialog(
                 }
                 OutlinedButton(onClick = onSaveWords, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.shard_save_words))
-                }
-                if (hasEnvelope) {
-                    OutlinedButton(onClick = onSaveEnvelope, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.shard_save_envelope))
-                    }
                 }
             }
         },
