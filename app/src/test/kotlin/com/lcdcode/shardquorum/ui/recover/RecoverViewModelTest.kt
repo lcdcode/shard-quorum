@@ -3,6 +3,7 @@ package com.lcdcode.shardquorum.ui.recover
 import com.lcdcode.shardquorum.qr.QrDecodeException
 import com.lcdcode.shardquorum.qr.QrDecoder
 import com.lcdcode.shardquorum.qr.UnavailableQrDecoder
+import com.lcdcode.shardquorum.ui.components.spellcheckBytewords
 import com.lcdcode.shardquorum.ui.create.CreateSecretViewModel
 import com.lcdcode.shardquorum.ui.create.ShardPage
 import com.lcdcode.shardquorum.sskr.KekEnvelope
@@ -214,7 +215,7 @@ class RecoverViewModelTest {
 
     @Test
     fun spellcheckFlagsBadWordsWithSuggestions() {
-        val checks = RecoverViewModel.spellcheck("able axes zzzz")
+        val checks = spellcheckBytewords("able axes zzzz")
         assertEquals(3, checks.size)
         assertTrue(checks[0].recognized)
         assertFalse(checks[1].recognized)

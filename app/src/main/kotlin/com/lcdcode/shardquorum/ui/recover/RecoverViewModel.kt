@@ -26,9 +26,6 @@ data class RecoveredSecret(val display: String, val isHex: Boolean)
 /** One shard already collected, summarized for the UI list. */
 data class CollectedShard(val memberIndex: Int)
 
-/** A single token from word-entry input, with spellcheck verdict. */
-data class TokenCheck(val token: String, val recognized: Boolean, val suggestions: List<String>)
-
 /**
  * Collects shares from any mix of input methods (scanned QR, uploaded image,
  * hand-typed Bytewords) plus an optional KEK recovery envelope, then
@@ -196,23 +193,6 @@ class RecoverViewModel : ViewModel() {
     }
 
     companion object {
-        /** Splits [input] on whitespace and spellchecks each word. */
-        fun spellcheck(input: String): List<TokenCheck> =
-            input.trim().split(WHITESPACE).filter { it.isNotEmpty() }.map { token ->
-                val recognized = com.lcdcode.shardquorum.sskr.Bytewords.isWord(token)
-                TokenCheck(
-                    token = token,
-                    recognized = recognized,
-                    suggestions = if (recognized) {
-                        emptyList()
-                    } else {
-                        com.lcdcode.shardquorum.sskr.Bytewords.suggestions(token)
-                    },
-                )
-            }
-
-        private val WHITESPACE = Regex("\\s+")
-
         private fun ByteArray.toHex(): String =
             joinToString("") { "%02x".format(it) }
     }

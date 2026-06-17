@@ -39,28 +39,34 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lcdcode.shardquorum.R
 import com.lcdcode.shardquorum.qr.QrPng
+import com.lcdcode.shardquorum.qr.ZxingQrDecoder
 import com.lcdcode.shardquorum.ui.QrImage
+import com.lcdcode.shardquorum.ui.components.ShardInputPanel
 
 @Composable
 fun CreateSecretScreen(onExit: () -> Unit, viewModel: CreateSecretViewModel = viewModel()) {
+    val exit = {
+        viewModel.reset()
+        onExit()
+    }
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
     ) {
-        val shards = viewModel.shards
-        if (shards == null) {
-            BackHandler {
-                viewModel.reset()
-                onExit()
+        when (viewModel.phase) {
+            CreatePhase.FORM -> {
+                BackHandler(onBack = exit)
+                ParamsForm(viewModel)
             }
-            ParamsForm(viewModel)
-        } else {
-            ShardViewer(
-                shards = shards,
-                onDone = {
-                    viewModel.reset()
-                    onExit()
-                },
+            CreatePhase.RECORD -> ShardViewer(
+                shards = viewModel.shards.orEmpty(),
+                onContinue = viewModel::startVerify,
+                onAbandon = exit,
+            )
+            CreatePhase.VERIFY -> VerifyStep(
+                viewModel = viewModel,
+                onFinish = exit,
+                onBack = viewModel::backToRecord,
             )
         }
     }
@@ -193,12 +199,12 @@ private fun QuorumStepper(label: String, value: Int, onChange: (Int) -> Unit) {
 }
 
 /**
- * Shows one shard at a time with Previous/Next navigation. Leaving the viewer
- * (Done or system back) is guarded by a confirmation, because the shards are
- * shown only once and cannot be recovered from the app afterwards.
+ * Shows one shard at a time with Previous/Next navigation. [onContinue] advances
+ * to the verify step; system back is guarded by an abandon confirmation, since
+ * leaving discards the shards (they are shown only once).
  */
 @Composable
-private fun ShardViewer(shards: List<ShardPage>, onDone: () -> Unit) {
+private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAbandon: () -> Unit) {
     var index by rememberSaveable { mutableIntStateOf(0) }
     var showConfirm by rememberSaveable { mutableStateOf(false) }
     var showShareWarning by rememberSaveable { mutableStateOf(false) }
@@ -247,11 +253,10 @@ private fun ShardViewer(shards: List<ShardPage>, onDone: () -> Unit) {
     BackHandler { showConfirm = true }
 
     if (showConfirm) {
-        ConfirmRecordedDialog(
-            shardCount = shards.size,
+        ConfirmAbandonDialog(
             onConfirm = {
                 showConfirm = false
-                onDone()
+                onAbandon()
             },
             onDismiss = { showConfirm = false },
         )
@@ -356,13 +361,13 @@ private fun ShardViewer(shards: List<ShardPage>, onDone: () -> Unit) {
         }
 
         Button(
-            onClick = { showConfirm = true },
+            onClick = onContinue,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 24.dp),
         ) {
-            Text(stringResource(R.string.create_done))
+            Text(stringResource(R.string.create_continue_verify))
         }
     }
 }
@@ -415,22 +420,121 @@ private fun ShareWarningDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun ConfirmRecordedDialog(shardCount: Int, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+private fun ConfirmAbandonDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.shard_confirm_title)) },
-        text = { Text(stringResource(R.string.shard_confirm_message, shardCount)) },
+        title = { Text(stringResource(R.string.shard_abandon_title)) },
+        text = { Text(stringResource(R.string.shard_abandon_message)) },
         confirmButton = {
             TextButton(onClick = onConfirm) {
-                Text(stringResource(R.string.shard_confirm_yes))
+                Text(stringResource(R.string.shard_abandon_yes))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.shard_confirm_no))
+                Text(stringResource(R.string.shard_abandon_no))
             }
         },
     )
+}
+
+@Composable
+private fun VerifyStep(
+    viewModel: CreateSecretViewModel,
+    onFinish: () -> Unit,
+    onBack: () -> Unit,
+) {
+    val decoder = remember { ZxingQrDecoder() }
+    var showSkipWarning by rememberSaveable { mutableStateOf(false) }
+    BackHandler(onBack = onBack)
+
+    if (showSkipWarning) {
+        AlertDialog(
+            onDismissRequest = { showSkipWarning = false },
+            title = { Text(stringResource(R.string.verify_skip_title)) },
+            text = { Text(stringResource(R.string.verify_skip_message)) },
+            confirmButton = {
+                TextButton(onClick = onFinish) {
+                    Text(stringResource(R.string.verify_skip_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSkipWarning = false }) {
+                    Text(stringResource(R.string.verify_skip_cancel))
+                }
+            },
+        )
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.verify_title),
+            style = MaterialTheme.typography.headlineMedium,
+        )
+        Text(
+            text = stringResource(R.string.verify_instructions, viewModel.threshold),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+
+        when (viewModel.verifyState) {
+            VerifyState.COLLECTING -> Text(
+                text = stringResource(
+                    R.string.verify_progress,
+                    viewModel.verifyShares.size,
+                    viewModel.threshold,
+                ),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            VerifyState.VERIFIED -> Text(
+                text = stringResource(R.string.verify_ok),
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.titleMedium,
+            )
+            VerifyState.MISMATCH -> Text(
+                text = stringResource(R.string.verify_mismatch),
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.titleMedium,
+            )
+        }
+
+        if (viewModel.verifyState != VerifyState.VERIFIED) {
+            ShardInputPanel(
+                onText = { viewModel.addVerifyText(it) },
+                onImageBytes = { viewModel.addVerifyImage(it, decoder) },
+            )
+            viewModel.verifyError?.let {
+                Text(
+                    text = stringResource(it.messageRes()),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+
+        HorizontalDivider()
+
+        if (viewModel.verifyState == VerifyState.VERIFIED) {
+            Button(onClick = onFinish, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.verify_finish))
+            }
+        } else {
+            TextButton(onClick = { showSkipWarning = true }, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.verify_skip))
+            }
+        }
+    }
+}
+
+private fun VerifyInputError.messageRes(): Int = when (this) {
+    VerifyInputError.UNRECOGNIZED -> R.string.recover_error_unrecognized
+    VerifyInputError.DIFFERENT_SPLIT -> R.string.verify_error_different_split
+    VerifyInputError.IMAGE_DECODE_FAILED -> R.string.recover_error_image_decode
 }
 
 @Composable

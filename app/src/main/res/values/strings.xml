@@ -32,6 +32,19 @@
     <string name="recover_error_failed">Recovery failed - shards or envelope may be wrong or damaged.</string>
     <string name="recover_error_image_decode">Could not find a QR code in that image. Try a clearer photo or type the words instead.</string>
 
+    <string name="verify_title">Verify your shards</string>
+    <string name="verify_instructions">Re-enter any %1$d shards the way recipients will - scan a QR, type the words, or import a file - to prove they rebuild this secret before you distribute them.</string>
+    <string name="verify_progress">Re-entered %1$d of %2$d needed</string>
+    <string name="verify_ok">Verified - these shards rebuild your secret.</string>
+    <string name="verify_mismatch">These shards do NOT rebuild the secret. Re-check what you saved, then try again.</string>
+    <string name="verify_error_different_split">That shard is from a different secret.</string>
+    <string name="verify_finish">Finish</string>
+    <string name="verify_skip">Skip verification</string>
+    <string name="verify_skip_title">Skip verification?</string>
+    <string name="verify_skip_message">Without verifying, you cannot be sure your saved shards actually rebuild the secret. If any were mis-saved, the secret may be lost. Skip anyway?</string>
+    <string name="verify_skip_confirm">Skip and finish</string>
+    <string name="verify_skip_cancel">Go back</string>
+
     <string name="recovered_title">Recovered secret</string>
     <string name="recovered_warning">Shown only while this screen is open. It is not saved.</string>
     <string name="recovered_done">Done</string>
@@ -49,7 +62,7 @@
     <string name="create_share_count_label">Shards (N): %1$d</string>
     <string name="create_scheme_summary">Any %1$d of %2$d shards reconstruct the secret. Fewer reveal nothing.</string>
     <string name="create_generate">Generate shards</string>
-    <string name="create_done">Done - shards recorded</string>
+    <string name="create_continue_verify">Continue to verify</string>
     <string name="create_error_name_required">A name is required.</string>
     <string name="create_error_secret_required">Enter the secret to protect.</string>
     <string name="create_error_hex_invalid">Not valid hex.</string>
@@ -60,10 +73,10 @@
     <string name="shard_qr_description">QR code of this shard</string>
     <string name="shard_nav_prev">Previous</string>
     <string name="shard_nav_next">Next</string>
-    <string name="shard_confirm_title">All shards recorded?</string>
-    <string name="shard_confirm_message">Make sure every one of the %1$d shards has been written down or scanned. For your security, they will not be shown again.</string>
-    <string name="shard_confirm_yes">Yes, I\'m done</string>
-    <string name="shard_confirm_no">Go back</string>
+    <string name="shard_abandon_title">Leave without finishing?</string>
+    <string name="shard_abandon_message">These shards are shown only once and will be discarded. You will need to start over. Leave anyway?</string>
+    <string name="shard_abandon_yes">Discard and leave</string>
+    <string name="shard_abandon_no">Keep going</string>
     <string name="shard_save">Save…</string>
     <string name="shard_save_title">Save this shard</string>
     <string name="shard_save_qr">Save QR image (PNG)</string>

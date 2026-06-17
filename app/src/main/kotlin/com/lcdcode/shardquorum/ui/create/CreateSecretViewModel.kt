@@ -4,10 +4,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import com.lcdcode.shardquorum.qr.QrDecodeException
+import com.lcdcode.shardquorum.qr.QrDecoder
 import com.lcdcode.shardquorum.sskr.KekEnvelope
 import com.lcdcode.shardquorum.sskr.Shamir
+import com.lcdcode.shardquorum.sskr.ShareImport
+import com.lcdcode.shardquorum.sskr.ShareReader
 import com.lcdcode.shardquorum.sskr.Sskr
+import com.lcdcode.shardquorum.sskr.SskrShare
 import com.lcdcode.shardquorum.sskr.Ur
+import java.security.MessageDigest
 
 /**
  * How the secret is protected.
@@ -28,6 +34,14 @@ enum class CreateError {
     HEX_INVALID,
     HEX_LENGTH,
 }
+
+/** Stage of the create wizard. */
+enum class CreatePhase { FORM, RECORD, VERIFY }
+
+/** Outcome of the verify-before-distribute check. */
+enum class VerifyState { COLLECTING, VERIFIED, MISMATCH }
+
+enum class VerifyInputError { UNRECOGNIZED, DIFFERENT_SPLIT, IMAGE_DECODE_FAILED }
 
 /** Everything one shard page renders. All strings, ready for QR/text display. */
 data class ShardPage(
@@ -52,6 +66,24 @@ class CreateSecretViewModel : ViewModel() {
         private set
     var shards by mutableStateOf<List<ShardPage>?>(null)
         private set
+    var phase by mutableStateOf(CreatePhase.FORM)
+        private set
+
+    // Verify-before-distribute state. Only a SHA-256 fingerprint of the secret
+    // is kept (not the secret) plus the envelope ciphertext (KEK mode), so the
+    // re-entered shards can be proven to rebuild the exact original.
+    private var verifyFingerprint: ByteArray? = null
+    private var verifyEnvelope: ByteArray? = null
+    private var verifyIdentifier: Int? = null
+    var verifyShares by mutableStateOf<List<ShareImport.Share>>(emptyList())
+        private set
+    var verifyState by mutableStateOf(VerifyState.COLLECTING)
+        private set
+    var verifyError by mutableStateOf<VerifyInputError?>(null)
+        private set
+
+    val verifyCollectedIndices: List<Int>
+        get() = verifyShares.map { it.metadata.memberIndex }
 
     fun setThresholdClamped(value: Int) {
         threshold = value.coerceIn(MIN_QUORUM, Shamir.MAX_SHARES)
@@ -84,6 +116,19 @@ class CreateSecretViewModel : ViewModel() {
     /** Drops the generated shards (e.g. when navigating back to the form). */
     fun discardShards() {
         shards = null
+        phase = CreatePhase.FORM
+    }
+
+    /** Moves from recording shards to the verify step. */
+    fun startVerify() {
+        clearVerifyCollection()
+        phase = CreatePhase.VERIFY
+    }
+
+    /** Returns from verify to the shard pages. */
+    fun backToRecord() {
+        clearVerifyCollection()
+        phase = CreatePhase.RECORD
     }
 
     /** Clears the entire wizard for a fresh run. */
@@ -95,6 +140,17 @@ class CreateSecretViewModel : ViewModel() {
         shareCount = DEFAULT_SHARE_COUNT
         error = null
         shards = null
+        phase = CreatePhase.FORM
+        clearVerifyCollection()
+        verifyFingerprint = null
+        verifyEnvelope = null
+        verifyIdentifier = null
+    }
+
+    private fun clearVerifyCollection() {
+        verifyShares = emptyList()
+        verifyState = VerifyState.COLLECTING
+        verifyError = null
     }
 
     private fun generateKekMode() {
@@ -105,8 +161,10 @@ class CreateSecretViewModel : ViewModel() {
         val secret = secretInput.toByteArray(Charsets.UTF_8)
         try {
             val protected = KekEnvelope.protect(threshold, shareCount, secret)
+            armVerification(secret, protected.envelope, protected.shares.first())
             val envelopeUr = Ur.toEnvelopeUr(protected.envelope).uppercase()
             shards = toPages(protected.shares, envelopeUr)
+            phase = CreatePhase.RECORD
         } finally {
             secret.fill(0)
         }
@@ -124,9 +182,93 @@ class CreateSecretViewModel : ViewModel() {
             return
         }
         try {
-            shards = toPages(Sskr.generate(threshold, shareCount, secret), envelopeUr = null)
+            val generated = Sskr.generate(threshold, shareCount, secret)
+            armVerification(secret, envelope = null, firstShare = generated.first())
+            shards = toPages(generated, envelopeUr = null)
+            phase = CreatePhase.RECORD
         } finally {
             secret.fill(0)
+        }
+    }
+
+    /** Captures what verify needs (secret fingerprint + envelope + split id). */
+    private fun armVerification(secret: ByteArray, envelope: ByteArray?, firstShare: ByteArray) {
+        verifyFingerprint = sha256(secret)
+        verifyEnvelope = envelope
+        verifyIdentifier = SskrShare.deserialize(firstShare).identifier
+    }
+
+    /**
+     * Files re-entered shards for verification (lenient, like recovery: scans
+     * each line, skips human text/envelope/duplicates). When the threshold is
+     * met it reconstructs and compares the fingerprint, setting [verifyState].
+     */
+    fun addVerifyText(text: String): Boolean {
+        verifyError = null
+        val lines = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
+        val candidates = if (lines.size <= 1) listOf(text.trim()) else lines
+
+        var added = 0
+        var recognized = 0
+        var pendingError: VerifyInputError? = null
+        for (candidate in candidates) {
+            val parsed = try {
+                ShareReader.parse(candidate)
+            } catch (e: IllegalArgumentException) {
+                continue
+            }
+            recognized++
+            if (parsed !is ShareImport.Share) continue // envelope: we hold the real one
+            when {
+                verifyIdentifier != null && parsed.metadata.identifier != verifyIdentifier ->
+                    pendingError = VerifyInputError.DIFFERENT_SPLIT
+                verifyShares.any { it.metadata.memberIndex == parsed.metadata.memberIndex } -> {} // dup
+                else -> {
+                    verifyShares = verifyShares + parsed
+                    added++
+                }
+            }
+        }
+        if (recognized == 0) {
+            verifyError = VerifyInputError.UNRECOGNIZED
+            return false
+        }
+        if (added == 0 && pendingError != null) {
+            verifyError = pendingError
+            return false
+        }
+        if (verifyShares.size >= threshold) attemptVerify()
+        return added > 0
+    }
+
+    /** Decodes every QR in a picked image, then files them for verification. */
+    fun addVerifyImage(imageBytes: ByteArray, decoder: QrDecoder): Boolean {
+        val texts = try {
+            decoder.decode(imageBytes)
+        } catch (e: QrDecodeException) {
+            verifyError = VerifyInputError.IMAGE_DECODE_FAILED
+            return false
+        }
+        return addVerifyText(texts.joinToString("\n"))
+    }
+
+    private fun attemptVerify() {
+        val fingerprint = verifyFingerprint ?: return
+        val shareBytes = verifyShares.map { it.bytes }
+        val reconstructed = try {
+            verifyEnvelope?.let { KekEnvelope.recover(it, shareBytes) } ?: Sskr.combine(shareBytes)
+        } catch (e: IllegalArgumentException) {
+            verifyState = VerifyState.MISMATCH
+            return
+        }
+        verifyState = try {
+            if (sha256(reconstructed).contentEquals(fingerprint)) {
+                VerifyState.VERIFIED
+            } else {
+                VerifyState.MISMATCH
+            }
+        } finally {
+            reconstructed.fill(0)
         }
     }
 
@@ -153,6 +295,9 @@ class CreateSecretViewModel : ViewModel() {
 
         /** Cap on the secret name: it is printed on every shard, and bounds PNG width. */
         const val MAX_NAME_LENGTH = 24
+
+        private fun sha256(data: ByteArray): ByteArray =
+            MessageDigest.getInstance("SHA-256").digest(data)
 
         /**
          * Plain-text rendering of one shard for sharing/saving. The first line

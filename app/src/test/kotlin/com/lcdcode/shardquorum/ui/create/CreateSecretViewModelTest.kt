@@ -218,6 +218,96 @@ class CreateSecretViewModelTest {
         assertFalse(text.contains("envelope"))
     }
 
+    // --- Verify-before-distribute ---
+
+    @Test
+    fun generateMovesToRecordPhase() {
+        val vm = viewModel {
+            name = "Test"
+            secretInput = "abc"
+        }
+        vm.generate()
+        assertEquals(CreatePhase.RECORD, vm.phase)
+        vm.startVerify()
+        assertEquals(CreatePhase.VERIFY, vm.phase)
+    }
+
+    @Test
+    fun verifyingWithCorrectKekSharesSucceeds() {
+        val vm = viewModel {
+            name = "Vault"
+            secretInput = "correct horse battery staple"
+        }
+        vm.generate()
+        val pages = requireNotNull(vm.shards)
+        vm.startVerify()
+        // Re-enter the threshold of shards plus the envelope, as a recipient would.
+        vm.addVerifyText(pages[4].shareUrForQr)
+        vm.addVerifyText(pages[0].shareUrForQr)
+        assertEquals(VerifyState.COLLECTING, vm.verifyState)
+        vm.addVerifyText(pages[2].shareUrForQr)
+        assertEquals(VerifyState.VERIFIED, vm.verifyState)
+    }
+
+    @Test
+    fun verifyingDirectModeSucceeds() {
+        val vm = viewModel {
+            name = "Seed"
+            mode = SecretMode.DIRECT
+            secretInput = "ff00112233445566778899aabbccddee"
+        }
+        vm.generate()
+        val pages = requireNotNull(vm.shards)
+        vm.startVerify()
+        pages.take(3).forEach { vm.addVerifyText(it.shareBytewords) }
+        assertEquals(VerifyState.VERIFIED, vm.verifyState)
+    }
+
+    @Test
+    fun verifyAcceptsTheFullSavedWordsBlob() {
+        val vm = viewModel {
+            name = "Seed"
+            secretInput = "passphrase here"
+        }
+        vm.generate()
+        val pages = requireNotNull(vm.shards)
+        vm.startVerify()
+        // The saved .txt blob carries both the share and the envelope line.
+        pages.take(3).forEach { vm.addVerifyText(CreateSecretViewModel.shareText(it)) }
+        assertEquals(VerifyState.VERIFIED, vm.verifyState)
+    }
+
+    @Test
+    fun verifyRejectsSharesFromADifferentSplit() {
+        val vm = viewModel {
+            name = "Seed"
+            secretInput = "abc"
+        }
+        vm.generate()
+        vm.startVerify()
+        // A share from an unrelated split must be refused, not counted.
+        val foreign = Sskr.generate(3, 5, ByteArray(16) { 9 }, java.security.SecureRandom())
+        assertFalse(vm.addVerifyText(Ur.toUr(foreign.first())))
+        assertEquals(VerifyInputError.DIFFERENT_SPLIT, vm.verifyError)
+        assertEquals(0, vm.verifyShares.size)
+    }
+
+    @Test
+    fun backToRecordClearsVerifyCollection() {
+        val vm = viewModel {
+            name = "Seed"
+            secretInput = "abc"
+        }
+        vm.generate()
+        val pages = requireNotNull(vm.shards)
+        vm.startVerify()
+        vm.addVerifyText(pages[0].shareUrForQr)
+        vm.backToRecord()
+        assertEquals(CreatePhase.RECORD, vm.phase)
+        assertEquals(0, vm.verifyShares.size)
+        assertEquals(VerifyState.COLLECTING, vm.verifyState)
+    }
+
     @Test
     fun resetClearsEverything() {
         val vm = viewModel {
@@ -234,6 +324,7 @@ class CreateSecretViewModelTest {
         assertEquals(SecretMode.KEK, vm.mode)
         assertEquals(CreateSecretViewModel.DEFAULT_THRESHOLD, vm.threshold)
         assertEquals(CreateSecretViewModel.DEFAULT_SHARE_COUNT, vm.shareCount)
+        assertEquals(CreatePhase.FORM, vm.phase)
     }
 
     @Test
