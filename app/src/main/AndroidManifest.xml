@@ -8,8 +8,13 @@
         The :app build has a verifyNoNetwork* task that fails the build if any
         network permission ever reaches the merged manifest.
 
-        CAMERA will be added (runtime-requested) when QR share scanning lands.
+        CAMERA is used only to scan shard QR codes during recovery; it is
+        runtime-requested and never required to install or to use the
+        type-words / import-file recovery paths.
     -->
+
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
 
     <application
         android:allowBackup="false"

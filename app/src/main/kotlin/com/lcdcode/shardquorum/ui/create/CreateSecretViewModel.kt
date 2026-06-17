@@ -171,7 +171,7 @@ class CreateSecretViewModel : ViewModel() {
                     "rebuild the secret. Keep this shard private and apart from the others.",
             )
             appendLine()
-            appendLine("Shard words (type these, or scan the QR below):")
+            appendLine("Shard words (type these):")
             appendLine(page.shareBytewords)
             appendLine()
             appendLine("Shard QR (UR):")

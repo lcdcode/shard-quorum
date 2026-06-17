@@ -1,13 +1,21 @@
 package com.lcdcode.shardquorum.ui.recover
 
+import android.Manifest
+import android.content.pm.PackageManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -21,6 +29,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,9 +39,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lcdcode.shardquorum.R
+import com.lcdcode.shardquorum.qr.QrFrameAnalyzer
 import com.lcdcode.shardquorum.qr.ZxingQrDecoder
+import java.util.concurrent.Executors
 
 private enum class InputMethod { WORDS, SCAN, FILE }
 
@@ -110,7 +124,7 @@ private fun CollectionScreen(viewModel: RecoverViewModel) {
         MethodSelector(method, onSelect = { method = it })
         when (method) {
             InputMethod.WORDS -> WordEntry(viewModel)
-            InputMethod.SCAN -> ScanStub()
+            InputMethod.SCAN -> CameraScanner(viewModel)
             InputMethod.FILE -> FilePicker(viewModel)
         }
 
@@ -215,11 +229,81 @@ private fun WordEntry(viewModel: RecoverViewModel) {
 }
 
 @Composable
-private fun ScanStub() {
-    AssistChip(onClick = {}, enabled = false, label = { Text(stringResource(R.string.recover_coming_soon)) })
-    Text(
-        text = stringResource(R.string.recover_scan_placeholder),
-        style = MaterialTheme.typography.bodyMedium,
+private fun CameraScanner(viewModel: RecoverViewModel) {
+    val context = LocalContext.current
+    var hasPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+                PackageManager.PERMISSION_GRANTED,
+        )
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted -> hasPermission = granted }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (hasPermission) {
+            Text(
+                text = stringResource(R.string.recover_scan_help),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            CameraPreview(onDecoded = { viewModel.addBundle(it) })
+        } else {
+            Text(
+                text = stringResource(R.string.recover_camera_rationale),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            OutlinedButton(
+                onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.recover_camera_grant))
+            }
+        }
+    }
+}
+
+@Composable
+private fun CameraPreview(onDecoded: (String) -> Unit) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val previewView = remember { PreviewView(context) }
+    val executor = remember { Executors.newSingleThreadExecutor() }
+    val providerFuture = remember { ProcessCameraProvider.getInstance(context) }
+
+    DisposableEffect(lifecycleOwner) {
+        providerFuture.addListener({
+            val provider = providerFuture.get()
+            val preview = Preview.Builder().build().apply {
+                setSurfaceProvider(previewView.surfaceProvider)
+            }
+            val analysis = ImageAnalysis.Builder()
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .build()
+                .apply {
+                    setAnalyzer(executor, QrFrameAnalyzer { text ->
+                        // Analyzer runs off the main thread; hop back before
+                        // touching ViewModel/Compose state.
+                        previewView.post { onDecoded(text) }
+                    })
+                }
+            provider.unbindAll()
+            provider.bindToLifecycle(
+                lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis,
+            )
+        }, ContextCompat.getMainExecutor(context))
+
+        onDispose {
+            runCatching { providerFuture.get().unbindAll() }
+            executor.shutdown()
+        }
+    }
+
+    AndroidView(
+        factory = { previewView },
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(300.dp),
     )
 }
 
