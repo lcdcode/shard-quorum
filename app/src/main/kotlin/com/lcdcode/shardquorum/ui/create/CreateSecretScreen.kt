@@ -82,9 +82,22 @@ private fun ParamsForm(viewModel: CreateSecretViewModel) {
 
         OutlinedTextField(
             value = viewModel.name,
-            onValueChange = { viewModel.name = it },
+            onValueChange = {
+                if (it.length <= CreateSecretViewModel.MAX_NAME_LENGTH) viewModel.name = it
+            },
             label = { Text(stringResource(R.string.create_name_label)) },
-            supportingText = { Text(stringResource(R.string.create_name_hint)) },
+            supportingText = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = stringResource(R.string.create_name_warning),
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text("${viewModel.name.length}/${CreateSecretViewModel.MAX_NAME_LENGTH}")
+                }
+            },
             singleLine = true,
             isError = viewModel.error == CreateError.NAME_REQUIRED,
             modifier = Modifier.fillMaxWidth(),
@@ -270,7 +283,7 @@ private fun ShardViewer(shards: List<ShardPage>, onDone: () -> Unit) {
                         add(QrPng.LabeledQr(context.getString(R.string.png_label_envelope), it))
                     }
                 }
-                pendingPng = QrPng.encodeSheet(sections)
+                pendingPng = QrPng.encodeSheet(current.secretName, sections)
                 savePngLauncher.launch("$baseName.png")
             },
             onSaveWords = {

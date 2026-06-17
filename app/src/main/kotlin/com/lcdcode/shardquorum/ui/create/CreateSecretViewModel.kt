@@ -144,26 +144,38 @@ class CreateSecretViewModel : ViewModel() {
         }
 
     companion object {
-        const val MIN_QUORUM = 1
+        // Floor for both K and N. 1-of-N gives no protection (any single shard
+        // rebuilds the secret); we require at least 3-of-N. Set to 2 to also
+        // allow the common 2-of-3 scheme.
+        const val MIN_QUORUM = 3
         const val DEFAULT_THRESHOLD = 3
         const val DEFAULT_SHARE_COUNT = 5
 
+        /** Cap on the secret name: it is printed on every shard, and bounds PNG width. */
+        const val MAX_NAME_LENGTH = 24
+
         /**
-         * Plain-text rendering of one shard for the Android share sheet. Carries
-         * the recoverable payload (UR + words, plus the envelope in KEK mode) but
-         * deliberately NOT the secret's name - sharing a labeled shard would leak
-         * what it protects. The UR is lowercased back to canonical form.
+         * Plain-text rendering of one shard for sharing/saving. The first line
+         * is the secret's name so multiple shards can be told apart. Words come
+         * before the UR string to avoid confusing the two; the UR is lowercased
+         * back to canonical form. In KEK mode the recovery envelope is appended.
+         *
+         * Note: the name identifies what this shard protects, so a found shard
+         * reveals that - an accepted trade for manageability (see project notes).
          */
         fun shareText(page: ShardPage): String = buildString {
+            appendLine(page.secretName)
             appendLine("ShardQuorum shard ${page.index} of ${page.count}")
             appendLine(
                 "Any ${page.threshold} of ${page.count} of these shards together can " +
                     "rebuild the secret. Keep this shard private and apart from the others.",
             )
             appendLine()
-            appendLine("Shard (scan as a QR code, or type the words):")
-            appendLine(page.shareUrForQr.lowercase())
+            appendLine("Shard words (type these, or scan the QR below):")
             appendLine(page.shareBytewords)
+            appendLine()
+            appendLine("Shard QR (UR):")
+            appendLine(page.shareUrForQr.lowercase())
             page.envelopeUrForQr?.let { envelope ->
                 appendLine()
                 appendLine("Recovery envelope (needed to rebuild; keep it with this shard):")

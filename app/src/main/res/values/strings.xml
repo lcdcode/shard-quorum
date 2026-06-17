@@ -37,7 +37,7 @@
 
     <string name="create_title">New secret</string>
     <string name="create_name_label">Secret name</string>
-    <string name="create_name_hint">Stored on this device; printing it on shards is optional</string>
+    <string name="create_name_warning">Shown on every shard - anyone who has or finds one can read it, so keep it vague.</string>
     <string name="create_mode_kek">Encrypted envelope</string>
     <string name="create_mode_direct">Direct (interoperable)</string>
     <string name="create_mode_kek_description">Any text secret. A random key is split into shards; the secret travels alongside them as an encrypted envelope. The secret can be changed later without redistributing shards.</string>

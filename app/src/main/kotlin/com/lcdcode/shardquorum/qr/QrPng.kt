@@ -18,6 +18,8 @@ object QrPng {
     private const val QUIET_MODULES = 4
     private const val MARGIN = 24
     private const val SECTION_GAP = 28
+    private const val TITLE_TEXT_SIZE = 44f
+    private const val TITLE_GAP = 18
     private const val LABEL_TEXT_SIZE = 34f
     private const val LABEL_GAP = 10
     private const val BLACK = 0xff000000.toInt()
@@ -26,21 +28,36 @@ object QrPng {
     /** A QR plus the caption drawn above it. */
     data class LabeledQr(val label: String, val content: String)
 
-    fun encodeSheet(sections: List<LabeledQr>): ByteArray {
+    /**
+     * Renders a sheet titled with [title] (the secret name, for identifying the
+     * shard), followed by each labeled QR stacked vertically.
+     */
+    fun encodeSheet(title: String, sections: List<LabeledQr>): ByteArray {
         require(sections.isNotEmpty()) { "a sheet needs at least one QR" }
         val qrs = sections.map { renderQr(it.content) }
         try {
+            val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = BLACK
+                textSize = TITLE_TEXT_SIZE
+                typeface = Typeface.DEFAULT_BOLD
+            }
             val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = BLACK
                 textSize = LABEL_TEXT_SIZE
                 typeface = Typeface.DEFAULT_BOLD
             }
-            val metrics = labelPaint.fontMetrics
-            val labelHeight = (metrics.descent - metrics.ascent).toInt() + LABEL_GAP
+            val titleMetrics = titlePaint.fontMetrics
+            val labelMetrics = labelPaint.fontMetrics
+            val titleHeight = if (title.isBlank()) 0 else {
+                (titleMetrics.descent - titleMetrics.ascent).toInt() + TITLE_GAP
+            }
+            val titleWidth = if (title.isBlank()) 0 else titlePaint.measureText(title).toInt()
+            val labelHeight = (labelMetrics.descent - labelMetrics.ascent).toInt() + LABEL_GAP
 
-            val contentWidth = qrs.maxOf { it.width }
+            // Width fits the widest of {QRs, title} so the name never clips.
+            val contentWidth = maxOf(qrs.maxOf { it.width }, titleWidth)
             val width = contentWidth + MARGIN * 2
-            val height = MARGIN * 2 +
+            val height = MARGIN * 2 + titleHeight +
                 qrs.sumOf { labelHeight + it.height } +
                 SECTION_GAP * (sections.size - 1)
 
@@ -49,8 +66,12 @@ object QrPng {
                 val canvas = Canvas(sheet)
                 canvas.drawColor(WHITE)
                 var y = MARGIN
+                if (title.isNotBlank()) {
+                    canvas.drawText(title, MARGIN.toFloat(), y - titleMetrics.ascent, titlePaint)
+                    y += titleHeight
+                }
                 sections.forEachIndexed { i, section ->
-                    canvas.drawText(section.label, MARGIN.toFloat(), y - metrics.ascent, labelPaint)
+                    canvas.drawText(section.label, MARGIN.toFloat(), y - labelMetrics.ascent, labelPaint)
                     y += labelHeight
                     val qr = qrs[i]
                     canvas.drawBitmap(qr, ((width - qr.width) / 2).toFloat(), y.toFloat(), null)

@@ -72,14 +72,26 @@ class CreateSecretViewModelTest {
     @Test
     fun quorumStaysCoherent() {
         val vm = viewModel()
-        vm.setShareCountClamped(2)
-        assertEquals(2, vm.shareCount)
-        assertEquals(2, vm.threshold)
+        // Count cannot drop below the minimum quorum; threshold follows it down.
+        vm.setShareCountClamped(1)
+        assertEquals(CreateSecretViewModel.MIN_QUORUM, vm.shareCount)
+        assertEquals(CreateSecretViewModel.MIN_QUORUM, vm.threshold)
+        // Threshold caps at the max share count, dragging count up with it.
         vm.setThresholdClamped(99)
         assertEquals(16, vm.threshold)
         assertEquals(16, vm.shareCount)
+        // Threshold cannot fall below the minimum quorum.
         vm.setThresholdClamped(0)
-        assertEquals(1, vm.threshold)
+        assertEquals(CreateSecretViewModel.MIN_QUORUM, vm.threshold)
+    }
+
+    @Test
+    fun thresholdAndCountNeverGoBelowMinimum() {
+        val vm = viewModel()
+        vm.setThresholdClamped(CreateSecretViewModel.MIN_QUORUM - 1)
+        assertEquals(CreateSecretViewModel.MIN_QUORUM, vm.threshold)
+        vm.setShareCountClamped(CreateSecretViewModel.MIN_QUORUM - 1)
+        assertEquals(CreateSecretViewModel.MIN_QUORUM, vm.shareCount)
     }
 
     // --- Generation, KEK mode ---
@@ -133,15 +145,15 @@ class CreateSecretViewModelTest {
             mode = SecretMode.DIRECT
             secretInput = secretHex
         }
-        vm.setThresholdClamped(2)
-        vm.setShareCountClamped(3)
+        vm.setThresholdClamped(3)
+        vm.setShareCountClamped(4)
         vm.generate()
         assertNull(vm.error)
         val pages = requireNotNull(vm.shards)
-        assertEquals(3, pages.size)
+        assertEquals(4, pages.size)
         assertNull(pages.first().envelopeUrForQr)
 
-        val shares = pages.take(2).map { Ur.fromUr(it.shareUrForQr) }
+        val shares = pages.take(3).map { Ur.fromUr(it.shareUrForQr) }
         assertArrayEquals(
             CreateSecretViewModel.parseHex(secretHex),
             Sskr.combine(shares),
@@ -174,7 +186,7 @@ class CreateSecretViewModelTest {
     }
 
     @Test
-    fun shareTextCarriesPayloadButNotTheName() {
+    fun shareTextStartsWithNameAndCarriesPayload() {
         val vm = viewModel {
             name = "My bank PIN"
             secretInput = "hunter2!"
@@ -183,13 +195,15 @@ class CreateSecretViewModelTest {
         val page = requireNotNull(vm.shards).first()
         val text = CreateSecretViewModel.shareText(page)
 
+        // The secret name is the first line, for telling shards apart.
+        assertEquals("My bank PIN", text.lineSequence().first())
         assertTrue(text.contains("shard 1 of 5"))
         assertTrue(text.contains(page.shareBytewords))
         assertTrue(text.contains(page.shareUrForQr.lowercase()))
         // KEK mode: envelope must travel with the shard.
         assertTrue(text.contains(page.envelopeUrForQr!!.lowercase()))
-        // The secret's name must never appear in a shared shard.
-        assertFalse(text.contains("My bank PIN"))
+        // Words appear before the UR string to avoid confusing the two.
+        assertTrue(text.indexOf(page.shareBytewords) < text.indexOf(page.shareUrForQr.lowercase()))
     }
 
     @Test
