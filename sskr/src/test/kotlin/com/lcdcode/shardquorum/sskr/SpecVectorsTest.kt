@@ -74,4 +74,50 @@ class SpecVectorsTest {
             "waxy into junk jolt keep lion leaf ruby purr"
         assertEquals(expected, Bytewords.encode(tagged, Bytewords.Style.STANDARD))
     }
+
+    /**
+     * End-to-end reconstruction of the official BCR-2020-011 worked example
+     * (docs/reference/bcr-2020-011-sskr.md), the only published SSKR vector that
+     * ships a full share set alongside its master secret. These shares were
+     * produced by the Blockchain Commons reference implementation, so recovering
+     * the exact master secret from them validates our GF(256) Shamir AND the
+     * HMAC digest-share construction cross-tool, not merely against ourselves.
+     *
+     * The vector is a 2-group split (group threshold 2; group 0 is 2-of-3,
+     * group 1 is 3-of-5). ShardQuorum's Sskr facade is single-group only, so the
+     * outer group layer is reconstructed here directly via Shamir.combine: each
+     * group's members rebuild that group's share value, then the group values
+     * rebuild the master secret. The digest is verified at BOTH Shamir layers.
+     */
+    @Test
+    fun officialMultiGroupVectorReconstructsMasterSecret() {
+        val masterSecret = hex("7daa851251002874e1a1995f0897e6b1")
+        val shares = listOf(
+            // Group 0: 2 of 3.
+            "4bbf1101003e990c1f0435e2b33c721535c74603d0",
+            "4bbf1101010c8ba39a7502a325ed07b8d597d1b80f",
+            "4bbf1101025abd490ee65b6084859854ee67736e75",
+            // Group 1: 3 of 5.
+            "4bbf11120044ef453f66923d32653b377de5c94b39",
+            "4bbf1112016ffb1b0cc5ab485f5a67136c802bc67b",
+            "4bbf111202a3763155fcfdb5887abce6ee69c4bbcd",
+            "4bbf11120388626f665fc4c0e545e0c2ff0c26368f",
+            "4bbf1112046334a0db7838a5c6c4d2dcb2e5b65911",
+        ).map { SskrShare.deserialize(hex(it)) }
+
+        // Recover each group's share value from a threshold-sized subset of its
+        // members; Shamir.combine throws if the digest at x=254 fails to match.
+        val groupValues = shares.groupBy { it.groupIndex }.mapValues { (_, members) ->
+            val threshold = members.first().memberThreshold
+            val subset = members.take(threshold).associate { it.memberIndex to it.value }
+            Shamir.combine(threshold, subset)
+        }
+
+        // The outer group layer: group values sit at x = groupIndex and rebuild
+        // the master secret, again digest-checked at x=254.
+        val groupThreshold = shares.first().groupThreshold
+        val recovered = Shamir.combine(groupThreshold, groupValues)
+
+        assertArrayEquals(masterSecret, recovered)
+    }
 }

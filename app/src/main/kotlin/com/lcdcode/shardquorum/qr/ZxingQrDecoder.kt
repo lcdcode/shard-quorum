@@ -15,6 +15,11 @@ import com.google.zxing.multi.qrcode.QRCodeMultiReader
  * [QrDecodeException], never memory corruption - which is why a JVM decoder was
  * chosen over a native one for parsing custodian-supplied images.
  *
+ * Image dimensions are read without allocation first, then the bitmap is
+ * downsampled so its pixel buffer stays under [MAX_PIXELS]. This bounds the
+ * IntArray a maliciously huge image could force us to allocate, while leaving
+ * normal high-resolution photos of a printed shard decodable.
+ *
  * Decoding runs synchronously on the caller's thread. Callers should invoke it
  * off the main thread for large images; current call sites decode a single
  * picked image, which is acceptable inline.
@@ -22,7 +27,15 @@ import com.google.zxing.multi.qrcode.QRCodeMultiReader
 class ZxingQrDecoder : QrDecoder {
 
     override fun decode(imageBytes: ByteArray): List<String> {
-        val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+            throw QrDecodeException("could not read image data")
+        }
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = sampleSizeFor(bounds.outWidth, bounds.outHeight)
+        }
+        val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size, options)
             ?: throw QrDecodeException("could not read image data")
         try {
             val width = bitmap.width
@@ -44,7 +57,18 @@ class ZxingQrDecoder : QrDecoder {
         }
     }
 
+    /** Smallest power-of-two subsample that brings the pixel count under [MAX_PIXELS]. */
+    private fun sampleSizeFor(width: Int, height: Int): Int {
+        var sample = 1
+        while ((width / sample).toLong() * (height / sample) > MAX_PIXELS) sample *= 2
+        return sample
+    }
+
     private companion object {
+        // ~8M pixels caps the decoded IntArray near 32 MB. Above this the image
+        // is downsampled; a QR sheet stays well within QR-detectable resolution.
+        const val MAX_PIXELS = 8_000_000L
+
         val HINTS = mapOf(
             DecodeHintType.TRY_HARDER to true,
             DecodeHintType.POSSIBLE_FORMATS to listOf(BarcodeFormat.QR_CODE),

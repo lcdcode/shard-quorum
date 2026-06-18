@@ -58,6 +58,13 @@ class Gf256Test {
         }
     }
 
+    @Test(expected = IllegalArgumentException::class)
+    fun interpolationRejectsDuplicateXCoordinates() {
+        // A repeated x-coordinate would zero a basis denominator; reject it with
+        // a clear precondition rather than an opaque division-by-zero.
+        Gf256.interpolate(listOf(1 to byteArrayOf(0x10), 1 to byteArrayOf(0x20)), 0)
+    }
+
     /** A degree-1 polynomial through two points reconstructs at any x. */
     @Test
     fun interpolationRecoversConstantTerm() {

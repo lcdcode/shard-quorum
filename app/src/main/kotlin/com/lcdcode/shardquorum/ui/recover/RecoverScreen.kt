@@ -190,5 +190,6 @@ private fun RecoverError.messageRes(): Int = when (this) {
     RecoverError.DUPLICATE_SHARD -> R.string.recover_error_duplicate
     RecoverError.NOT_ENOUGH_SHARDS -> R.string.recover_error_not_enough
     RecoverError.RECOVERY_FAILED -> R.string.recover_error_failed
+    RecoverError.ENVELOPE_INVALID -> R.string.recover_error_envelope
     RecoverError.IMAGE_DECODE_FAILED -> R.string.recover_error_image_decode
 }

@@ -47,6 +47,15 @@ class SskrTest {
     }
 
     @Test
+    fun rejectsThresholdBelowQuorum() {
+        // 1-of-N gives no protection and no integrity digest; the facade refuses
+        // it even though the Shamir primitive can express it.
+        assertThrows(IllegalArgumentException::class.java) {
+            Sskr.generate(1, 4, secret(16), rng)
+        }
+    }
+
+    @Test
     fun tamperedShareValueIsRejected() {
         val shares = Sskr.generate(2, 3, secret(16), rng).toMutableList()
         val corrupt = shares[0].copyOf().also { it[SskrShare.METADATA_LENGTH] = (it[5] + 1).toByte() }

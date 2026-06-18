@@ -97,6 +97,36 @@ class RecoverViewModelTest {
     }
 
     @Test
+    fun damagedEnvelopeReportsEnvelopeError() {
+        // Correct shares but a corrupted envelope: distinguished from a
+        // shards-do-not-combine failure so the user knows where to look.
+        val protected = KekEnvelope.protect(2, 3, "vault key".toByteArray(), random)
+        val tampered = protected.envelope.copyOf().also { it[it.size - 1] = (it[it.size - 1] + 1).toByte() }
+        val vm = RecoverViewModel()
+        vm.addInput(Ur.toUr(protected.shares[0]))
+        vm.addInput(Ur.toUr(protected.shares[1]))
+        vm.addInput(Ur.toEnvelopeUr(tampered))
+        vm.recover()
+        assertEquals(RecoverError.ENVELOPE_INVALID, vm.error)
+        assertNull(vm.result)
+    }
+
+    @Test
+    fun corruptedShareReportsRecoveryFailed() {
+        // A share whose value is damaged (header intact, so it is still
+        // collected) fails the digest at combine, before the envelope is opened.
+        val protected = KekEnvelope.protect(2, 3, "vault key".toByteArray(), random)
+        val corrupt = protected.shares[0].copyOf().also { it[6] = (it[6] + 1).toByte() }
+        val vm = RecoverViewModel()
+        vm.addInput(Ur.toUr(corrupt))
+        vm.addInput(Ur.toUr(protected.shares[1]))
+        vm.addInput(Ur.toEnvelopeUr(protected.envelope))
+        vm.recover()
+        assertEquals(RecoverError.RECOVERY_FAILED, vm.error)
+        assertNull(vm.result)
+    }
+
+    @Test
     fun shortDirectSecretIsNotFlagged() {
         // A 16-byte direct secret cannot be a KEK, so no warning.
         val shares = Sskr.generate(2, 3, ByteArray(16) { it.toByte() }, random)

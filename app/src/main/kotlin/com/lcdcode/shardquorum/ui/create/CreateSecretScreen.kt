@@ -23,6 +23,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -37,6 +38,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lcdcode.shardquorum.R
 import com.lcdcode.shardquorum.qr.QrPng
@@ -215,6 +219,28 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
     var showSaveOptions by rememberSaveable { mutableStateOf(false) }
     val current = shards[index]
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    // Staged shard PNGs (for the share intent) hold key material, so they must
+    // not linger on disk. We purge them once we regain the foreground - by then
+    // the recipient's read window via the granted URI has passed - and again
+    // when this screen is left, as a backstop.
+    val sharedDir = remember(context) { File(context.cacheDir, "shared") }
+    val purgeSharedDir = { sharedDir.listFiles()?.forEach { it.delete() }; Unit }
+    var pendingShareCleanup by remember { mutableStateOf(false) }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && pendingShareCleanup) {
+                purgeSharedDir()
+                pendingShareCleanup = false
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            purgeSharedDir()
+        }
+    }
 
     // CreateDocument hands back a destination uri; we write the payload that was
     // staged just before launching, then clear it.
@@ -276,12 +302,14 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
     }
 
     fun shareQrImage() {
-        // Stage into cache/shared, keeping only the current shard so no extra
-        // shard images linger on disk after a share.
-        val dir = File(context.cacheDir, "shared").apply { mkdirs() }
-        dir.listFiles()?.forEach { it.delete() }
-        val file = File(dir, "$baseName.png").apply { writeBytes(buildShardPng()) }
+        // Stage into cache/shared, keeping only the current shard. The file is
+        // purged when we return to the foreground and when this screen is left
+        // (see the DisposableEffect above), so it does not outlive the share.
+        sharedDir.mkdirs()
+        purgeSharedDir()
+        val file = File(sharedDir, "$baseName.png").apply { writeBytes(buildShardPng()) }
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        pendingShareCleanup = true
         chooserFor(
             Intent(Intent.ACTION_SEND).apply {
                 type = "image/png"

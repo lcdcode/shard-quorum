@@ -31,7 +31,8 @@
     <string name="recover_error_different_split">That shard belongs to a different secret.</string>
     <string name="recover_error_duplicate">That shard was already added.</string>
     <string name="recover_error_not_enough">Add more shards to reach the quorum.</string>
-    <string name="recover_error_failed">Recovery failed - shards or envelope may be wrong or damaged.</string>
+    <string name="recover_error_failed">These shards do not combine into a valid secret. They may be wrong, too few, or damaged.</string>
+    <string name="recover_error_envelope">The shards combined, but the recovery envelope is wrong, missing, or damaged.</string>
     <string name="recover_error_image_decode">Could not find a QR code in that image. Try a clearer photo or type the words instead.</string>
 
     <string name="verify_title">Verify your shards</string>

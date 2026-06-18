@@ -4,6 +4,7 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.security.SecureRandom
 
@@ -19,7 +20,7 @@ class ShamirTest {
 
     @Test
     fun roundTripAcrossSchemesAndSecretSizes() {
-        val schemes = listOf(2 to 3, 3 to 5, 5 to 5, 1 to 1, 16 to 16, 9 to 16)
+        val schemes = listOf(2 to 2, 2 to 3, 3 to 5, 5 to 5, 16 to 16, 9 to 16)
         for (size in listOf(16, 32)) {
             val original = secret(size)
             for ((threshold, count) in schemes) {
@@ -75,11 +76,31 @@ class ShamirTest {
     }
 
     @Test
-    fun thresholdOneYieldsSecretInEveryShare() {
+    fun inconsistentSurplusShareIsRejected() {
+        val original = secret(32)
+        val shares = Shamir.split(3, 5, original, rng)
+        // The first three shares define a valid polynomial (the digest passes);
+        // a corrupted fourth share is surplus, so it is caught by the
+        // consistency check rather than masked by the digest.
+        val tamperedSurplus = shares[3].copyOf().also { it[0] = (it[0] + 1).toByte() }
+        val set = linkedMapOf(
+            0 to shares[0], 1 to shares[1], 2 to shares[2], 3 to tamperedSurplus,
+        )
+        val ex = assertThrows(IllegalArgumentException::class.java) {
+            Shamir.combine(3, set)
+        }
+        assertTrue(ex.message!!.contains("inconsistent share at index 3"))
+    }
+
+    @Test
+    fun rejectsThresholdBelowTwo() {
+        // 1-of-N is a degenerate split (every share is the secret, no digest
+        // share, no secrecy or integrity); both split and combine refuse it.
         val original = secret(16)
-        val shares = Shamir.split(1, 4, original, rng)
-        for (share in shares) assertArrayEquals(original, share)
-        assertArrayEquals(original, Shamir.combine(1, mapOf(2 to shares[2])))
+        assertThrows(IllegalArgumentException::class.java) { Shamir.split(1, 4, original, rng) }
+        assertThrows(IllegalArgumentException::class.java) {
+            Shamir.combine(1, mapOf(2 to original))
+        }
     }
 
     @Test

@@ -15,6 +15,13 @@ object Sskr {
     private const val SINGLE_GROUP_INDEX = 0
     private const val SINGLE_GROUP = 1
 
+    // A real quorum needs at least two shares. threshold == 1 is a degenerate
+    // split where every share equals the secret and there is no digest share
+    // (no integrity), so the SSKR layer rejects it even though the lower-level
+    // Shamir primitive can express it. This is the library-level floor; the UI
+    // may impose a higher one.
+    private const val MIN_THRESHOLD = 2
+
     /**
      * Splits [secret] into [memberCount] serialized SSKR shares, any
      * [memberThreshold] of which reconstruct it. All shares share one random
@@ -26,6 +33,9 @@ object Sskr {
         secret: ByteArray,
         random: SecureRandom = SecureRandom(),
     ): List<ByteArray> {
+        require(memberThreshold >= MIN_THRESHOLD) {
+            "memberThreshold must be >= $MIN_THRESHOLD (1-of-N provides no protection)"
+        }
         val identifier = random.nextInt(0x1_0000)
         val values = Shamir.split(memberThreshold, memberCount, secret, random)
         return values.mapIndexed { memberIndex, value ->
@@ -58,6 +68,9 @@ object Sskr {
         require(parsed.all { it.groupIndex == SINGLE_GROUP_INDEX }) { "unexpected group index" }
 
         val memberThreshold = parsed.map { it.memberThreshold }.toSet().single()
+        require(memberThreshold >= MIN_THRESHOLD) {
+            "memberThreshold must be >= $MIN_THRESHOLD (1-of-N provides no protection)"
+        }
         // Deduplicate by member index; duplicates of the same share are harmless.
         val byIndex = parsed.associate { it.memberIndex to it.value }
         require(byIndex.size >= memberThreshold) {

@@ -2,6 +2,7 @@ import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
+import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.TaskAction
@@ -96,15 +97,14 @@ dependencies {
     testImplementation(libs.junit)
 }
 
-// Privacy guard: fail the build if the merged manifest ever declares a network
-// permission. ShardQuorum handles key material; it must never be able to open
-// a socket. Output paths (print spooler, SAF) run in OTHER processes.
-val forbiddenPermissions = listOf(
-    "android.permission.INTERNET",
-    "android.permission.ACCESS_NETWORK_STATE",
-    "android.permission.ACCESS_WIFI_STATE",
-    "android.permission.CHANGE_NETWORK_STATE",
-    "android.permission.CHANGE_WIFI_STATE",
+// Privacy guard: fail the build if the merged manifest declares ANY permission
+// outside this allowlist. ShardQuorum handles key material; it must never be
+// able to open a socket. An allowlist fails closed: a permission pulled in by a
+// future dependency (network or otherwise) breaks the build until reviewed,
+// rather than slipping through a fixed denylist. Output paths (print spooler,
+// SAF) run in OTHER processes and need no permission here.
+val allowedPermissions = listOf(
+    "android.permission.CAMERA",
 )
 
 // Typed task class so Gradle's configuration cache can serialize the task graph.
@@ -114,14 +114,22 @@ abstract class VerifyNoNetworkTask : DefaultTask() {
     abstract val mergedManifest: RegularFileProperty
 
     @get:Input
-    abstract val forbiddenPermissions: ListProperty<String>
+    abstract val allowedPermissions: ListProperty<String>
+
+    // The app's own applicationId. Permissions in this namespace (e.g. AGP's
+    // injected ${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION) are
+    // app-private signature permissions and cannot grant network egress, so
+    // they are allowed without enumerating each one.
+    @get:Input
+    abstract val ownNamespace: Property<String>
 
     @TaskAction
     fun verify() {
         val doc = DocumentBuilderFactory.newInstance().apply {
             isNamespaceAware = true
         }.newDocumentBuilder().parse(mergedManifest.get().asFile)
-        val forbidden = forbiddenPermissions.get().toSet()
+        val allowed = allowedPermissions.get().toSet()
+        val ownPrefix = ownNamespace.get() + "."
         val nodes = doc.getElementsByTagName("uses-permission")
         val offenders = mutableListOf<String>()
         for (i in 0 until nodes.length) {
@@ -129,12 +137,14 @@ abstract class VerifyNoNetworkTask : DefaultTask() {
             val name = el.getAttributeNS(
                 "http://schemas.android.com/apk/res/android", "name",
             )
-            if (name in forbidden) offenders += name
+            if (name !in allowed && !name.startsWith(ownPrefix)) offenders += name
         }
         if (offenders.isNotEmpty()) {
             throw GradleException(
-                "Privacy constraint violated: merged manifest declares forbidden " +
-                    "permission(s): $offenders. This app must remain fully offline.",
+                "Privacy constraint violated: merged manifest declares unexpected " +
+                    "permission(s): $offenders. This app must remain fully offline; " +
+                    "if a new permission is genuinely required, add it to " +
+                    "allowedPermissions after review.",
             )
         }
     }
@@ -147,10 +157,17 @@ androidComponents {
             mergedManifest.set(
                 variant.artifacts.get(com.android.build.api.artifact.SingleArtifact.MERGED_MANIFEST),
             )
-            forbiddenPermissions.set(this@Build_gradle.forbiddenPermissions)
+            allowedPermissions.set(this@Build_gradle.allowedPermissions)
+            ownNamespace.set(android.namespace)
         }
         afterEvaluate {
-            tasks.named("assemble$capitalized").configure { dependsOn(verifyTask) }
+            // Gate every packaging path, not just assemble: bundle (AAB, the
+            // typical store artifact) and the aggregate check task must not be
+            // able to ship without the guard running.
+            listOf("assemble$capitalized", "bundle$capitalized").forEach { taskName ->
+                tasks.findByName(taskName)?.dependsOn(verifyTask)
+            }
+            tasks.named("check").configure { dependsOn(verifyTask) }
         }
     }
 }

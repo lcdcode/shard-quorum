@@ -38,9 +38,32 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.lcdcode.shardquorum.R
 import com.lcdcode.shardquorum.qr.QrFrameAnalyzer
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
 import java.util.concurrent.Executors
 
 private enum class InputMethod { WORDS, SCAN, FILE }
+
+// Picked shard files are tiny (a few hundred bytes of words); QR images are at
+// most a few MB. These caps bound how much of a hostile or mistaken pick we read
+// into memory, since a content URI may report no size up front.
+private const val MAX_TEXT_BYTES = 1 shl 20 // 1 MiB
+private const val MAX_IMAGE_BYTES = 16 shl 20 // 16 MiB
+
+/** Reads at most [cap] bytes; returns null if the stream exceeds it. */
+private fun readCapped(input: InputStream, cap: Int): ByteArray? {
+    val buffer = ByteArrayOutputStream()
+    val chunk = ByteArray(8192)
+    var total = 0
+    while (true) {
+        val read = input.read(chunk)
+        if (read < 0) break
+        total += read
+        if (total > cap) return null
+        buffer.write(chunk, 0, read)
+    }
+    return buffer.toByteArray()
+}
 
 /**
  * Shared shard-input UI used by both the recover flow and the create-flow
@@ -241,14 +264,12 @@ private fun FileImportPanel(onText: (String) -> Boolean, onImageBytes: (ByteArra
         ActivityResultContracts.GetContent(),
     ) { uri ->
         if (uri != null) {
-            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            val isImage = context.contentResolver.getType(uri)?.startsWith("image/") == true
+            val cap = if (isImage) MAX_IMAGE_BYTES else MAX_TEXT_BYTES
+            // Over-cap picks read as null and are ignored rather than processed.
+            val bytes = context.contentResolver.openInputStream(uri)?.use { readCapped(it, cap) }
             if (bytes != null) {
-                val mime = context.contentResolver.getType(uri)
-                if (mime?.startsWith("image/") == true) {
-                    onImageBytes(bytes)
-                } else {
-                    onText(bytes.toString(Charsets.UTF_8))
-                }
+                if (isImage) onImageBytes(bytes) else onText(bytes.toString(Charsets.UTF_8))
             }
         }
     }

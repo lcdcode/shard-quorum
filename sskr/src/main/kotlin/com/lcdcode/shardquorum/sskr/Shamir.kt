@@ -24,12 +24,18 @@ object Shamir {
     const val MAX_SECRET_LENGTH = 32
     const val MAX_SHARES = 16
 
+    // A real quorum needs at least two shares. threshold == 1 is a degenerate
+    // split where every share equals the secret and there is no digest share, so
+    // it offers neither secrecy nor integrity; the scheme rejects it outright.
+    const val MIN_THRESHOLD = 2
+
     private const val HMAC_ALGORITHM = "HmacSHA256"
 
     /**
      * Splits [secret] into [shareCount] shares with the given recovery
      * [threshold]. Returns a list indexed 0..shareCount-1, where element i is the
-     * raw share value at x-coordinate i.
+     * raw share value at x-coordinate i. Both [threshold] and [shareCount] must
+     * be at least [MIN_THRESHOLD]; 1-of-N is rejected (see [MIN_THRESHOLD]).
      *
      * @param random source of cryptographic randomness; injected for testability.
      */
@@ -39,14 +45,15 @@ object Shamir {
         secret: ByteArray,
         random: SecureRandom = SecureRandom(),
     ): List<ByteArray> {
-        require(shareCount in 1..MAX_SHARES) { "shareCount must be in 1..$MAX_SHARES" }
-        require(threshold in 1..shareCount) { "threshold must be in 1..shareCount" }
+        require(shareCount in MIN_THRESHOLD..MAX_SHARES) {
+            "shareCount must be in $MIN_THRESHOLD..$MAX_SHARES"
+        }
+        require(threshold in MIN_THRESHOLD..shareCount) {
+            "threshold must be in $MIN_THRESHOLD..shareCount"
+        }
         require(secret.size in MIN_SECRET_LENGTH..MAX_SECRET_LENGTH && secret.size % 2 == 0) {
             "secret must be an even length in $MIN_SECRET_LENGTH..$MAX_SECRET_LENGTH bytes"
         }
-
-        // Threshold of 1: every share is the secret itself (no field arithmetic).
-        if (threshold == 1) return List(shareCount) { secret.copyOf() }
 
         // Build the base set the recovery polynomial is fixed by:
         //   - (threshold - 2) random shares at x = 0..(threshold-3)
@@ -72,26 +79,44 @@ object Shamir {
 
     /**
      * Reconstructs the secret from [shares], a map of x-coordinate to share
-     * value. At least [threshold] shares must be supplied. Throws
-     * [IllegalArgumentException] if the recomputed digest does not match, which
-     * indicates wrong, insufficient, or corrupted shares.
+     * value. At least [threshold] shares must be supplied.
+     *
+     * Trust boundary: the caller is trusted only to supply share values; this
+     * function decides nothing from the share headers (the SSKR layer reads the
+     * threshold and passes it in). Integrity rests on the 4-byte HMAC digest
+     * share, which makes assembling a wrong, insufficient, or corrupted set
+     * detectable with ~2^-32 false-accept probability.
+     *
+     * The recovery polynomial is fixed by exactly [threshold] shares; any
+     * surplus shares are then checked to lie on that same polynomial rather than
+     * folded into a higher-degree fit (which could mask a single bad share).
+     * Throws [IllegalArgumentException] on a digest mismatch or an inconsistent
+     * surplus share.
      */
     fun combine(threshold: Int, shares: Map<Int, ByteArray>): ByteArray {
-        require(threshold >= 1) { "threshold must be >= 1" }
+        require(threshold >= MIN_THRESHOLD) { "threshold must be >= $MIN_THRESHOLD" }
         require(shares.size >= threshold) { "need at least $threshold shares, got ${shares.size}" }
 
-        // Threshold of 1: any share is the secret; there is no digest share.
-        if (threshold == 1) return shares.values.first().copyOf()
-
         val points = shares.map { it.key to it.value }
-        val secret = Gf256.interpolate(points, SECRET_INDEX)
-        val digestShare = Gf256.interpolate(points, DIGEST_INDEX)
+        val defining = points.take(threshold)
+        val secret = Gf256.interpolate(defining, SECRET_INDEX)
+        val digestShare = Gf256.interpolate(defining, DIGEST_INDEX)
 
         val recoveredDigest = digestShare.copyOfRange(0, DIGEST_LENGTH)
         val randomPart = digestShare.copyOfRange(DIGEST_LENGTH, digestShare.size)
         val expectedDigest = createDigest(randomPart, secret)
         require(constantTimeEquals(recoveredDigest, expectedDigest)) {
             "share digest mismatch: wrong, insufficient, or corrupted shares"
+        }
+
+        // Every surplus share must lie on the recovered polynomial; a mismatch
+        // means the set mixes shares from different splits or includes a corrupt
+        // one, even though the defining subset alone passed the digest.
+        for ((x, value) in points.drop(threshold)) {
+            val onPolynomial = Gf256.interpolate(defining, x)
+            require(constantTimeEquals(onPolynomial, value)) {
+                "inconsistent share at index $x: not on the recovered polynomial"
+            }
         }
         return secret
     }

@@ -7,6 +7,15 @@ import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 /**
+ * Thrown when a recovery envelope is malformed, an unsupported version, or fails
+ * authentication (wrong KEK or tampering). Distinct from a share-combination
+ * failure so callers can tell "wrong envelope" from "wrong shards". Subclasses
+ * [IllegalArgumentException] so existing broad catches keep working.
+ */
+class EnvelopeException(message: String, cause: Throwable? = null) :
+    IllegalArgumentException(message, cause)
+
+/**
  * KEK (key-encrypting-key) envelope: the indirection layer between the user's
  * secret and the distributed shares.
  *
@@ -104,20 +113,22 @@ object KekEnvelope {
 
     /**
      * Authenticates and decrypts [envelope] with [kek]. Throws
-     * [IllegalArgumentException] on a malformed envelope, an unsupported
-     * version, a wrong KEK, or any tampering (GCM authentication failure).
+     * [EnvelopeException] on a malformed envelope, an unsupported version, a
+     * wrong KEK, or any tampering (GCM authentication failure).
      */
     fun open(kek: ByteArray, envelope: ByteArray): ByteArray {
         require(kek.size == KEK_LENGTH) { "KEK must be $KEK_LENGTH bytes, got ${kek.size}" }
-        require(envelope.size > HEADER_LENGTH + NONCE_LENGTH + TAG_LENGTH) {
-            "envelope too short (${envelope.size} bytes) to contain header, nonce, and ciphertext"
+        if (envelope.size <= HEADER_LENGTH + NONCE_LENGTH + TAG_LENGTH) {
+            throw EnvelopeException(
+                "envelope too short (${envelope.size} bytes) to contain header, nonce, and ciphertext",
+            )
         }
         val header = envelope.copyOfRange(0, HEADER_LENGTH)
-        require(header.copyOfRange(0, MAGIC.size).contentEquals(MAGIC)) {
-            "not a ShardQuorum envelope (bad magic)"
+        if (!header.copyOfRange(0, MAGIC.size).contentEquals(MAGIC)) {
+            throw EnvelopeException("not a ShardQuorum envelope (bad magic)")
         }
-        require(header[MAGIC.size] == VERSION) {
-            "unsupported envelope version ${header[MAGIC.size]}"
+        if (header[MAGIC.size] != VERSION) {
+            throw EnvelopeException("unsupported envelope version ${header[MAGIC.size]}")
         }
         val nonce = envelope.copyOfRange(HEADER_LENGTH, HEADER_LENGTH + NONCE_LENGTH)
         val ciphertext = envelope.copyOfRange(HEADER_LENGTH + NONCE_LENGTH, envelope.size)
@@ -132,7 +143,7 @@ object KekEnvelope {
         try {
             return cipher.doFinal(ciphertext)
         } catch (e: AEADBadTagException) {
-            throw IllegalArgumentException(
+            throw EnvelopeException(
                 "envelope authentication failed: wrong shares/KEK or tampered envelope", e,
             )
         }

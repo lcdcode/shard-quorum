@@ -67,6 +67,12 @@ internal object Gf256 {
         require(points.all { it.second.size == length }) {
             "all sample vectors must have the same length"
         }
+        // Distinct x-coordinates are required: a repeated x makes some basis
+        // denominator zero (div-by-zero below). Fail with a clear precondition
+        // rather than the opaque "division by zero" from the field arithmetic.
+        require(points.mapTo(HashSet(points.size)) { it.first }.size == points.size) {
+            "interpolation x-coordinates must be distinct"
+        }
 
         val result = ByteArray(length)
         for (i in points.indices) {

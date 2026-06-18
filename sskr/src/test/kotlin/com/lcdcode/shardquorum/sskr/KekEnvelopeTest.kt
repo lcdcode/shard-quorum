@@ -88,6 +88,20 @@ class KekEnvelopeTest {
     }
 
     @Test
+    fun envelopeFailuresThrowEnvelopeException() {
+        // Envelope problems are typed distinctly from share-combine failures so
+        // the UI can tell "wrong envelope" from "wrong shards" (RecoverViewModel).
+        val kek = KekEnvelope.generateKek(random)
+        val envelope = KekEnvelope.seal(kek, ByteArray(16) { 5 }, random)
+        val tamperedTag = envelope.copyOf().also { it[envelope.size - 1] = (it[envelope.size - 1] + 1).toByte() }
+        assertThrows(EnvelopeException::class.java) { KekEnvelope.open(kek, tamperedTag) }
+        assertThrows(EnvelopeException::class.java) { KekEnvelope.open(kek, ByteArray(20)) }
+        assertThrows(EnvelopeException::class.java) {
+            KekEnvelope.open(kek, envelope.copyOf().also { it[0] = 'X'.code.toByte() })
+        }
+    }
+
+    @Test
     fun badMagicRejected() {
         val kek = KekEnvelope.generateKek(random)
         val envelope = KekEnvelope.seal(kek, ByteArray(16) { 5 }, random)

@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import com.lcdcode.shardquorum.qr.QrDecodeException
 import com.lcdcode.shardquorum.qr.QrDecoder
+import com.lcdcode.shardquorum.sskr.EnvelopeException
 import com.lcdcode.shardquorum.sskr.KekEnvelope
 import com.lcdcode.shardquorum.sskr.ShareImport
 import com.lcdcode.shardquorum.sskr.ShareReader
@@ -17,6 +18,7 @@ enum class RecoverError {
     DUPLICATE_SHARD,
     NOT_ENOUGH_SHARDS,
     RECOVERY_FAILED,
+    ENVELOPE_INVALID,
     IMAGE_DECODE_FAILED,
 }
 
@@ -179,20 +181,35 @@ class RecoverViewModel : ViewModel() {
         val shareBytes = shares.map { it.bytes }
         val currentEnvelope = envelope
         try {
+            // The recovered ByteArray is the most sensitive material in the app;
+            // zero it once the display String is built (mirrors the create flow).
+            // The String itself cannot be zeroed - an accepted Compose limitation.
             result = if (currentEnvelope != null) {
                 val secret = KekEnvelope.recover(currentEnvelope, shareBytes)
-                RecoveredSecret(secret.toString(Charsets.UTF_8), isHex = false)
+                try {
+                    RecoveredSecret(secret.toString(Charsets.UTF_8), isHex = false)
+                } finally {
+                    secret.fill(0)
+                }
             } else {
                 val combined = Sskr.combine(shareBytes)
-                // A KEK is always exactly KEK_LENGTH bytes; a shorter combined
-                // value can only be a direct secret. A KEK-length value with no
-                // envelope is ambiguous - flag it so the UI warns.
-                RecoveredSecret(
-                    display = combined.toHex(),
-                    isHex = true,
-                    maybeEncrypted = combined.size == KekEnvelope.KEK_LENGTH,
-                )
+                try {
+                    // A KEK is always exactly KEK_LENGTH bytes; a shorter combined
+                    // value can only be a direct secret. A KEK-length value with no
+                    // envelope is ambiguous - flag it so the UI warns.
+                    RecoveredSecret(
+                        display = combined.toHex(),
+                        isHex = true,
+                        maybeEncrypted = combined.size == KekEnvelope.KEK_LENGTH,
+                    )
+                } finally {
+                    combined.fill(0)
+                }
             }
+        } catch (e: EnvelopeException) {
+            // Shares combined into a KEK, but the envelope is wrong or damaged -
+            // a distinct, more actionable failure than shares not combining.
+            error = RecoverError.ENVELOPE_INVALID
         } catch (e: IllegalArgumentException) {
             error = RecoverError.RECOVERY_FAILED
         }
