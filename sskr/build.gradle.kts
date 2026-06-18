@@ -22,6 +22,7 @@ tasks.test {
     // parity fixture for reimplementations. RecoveryVectorsTest regenerates them
     // from this module and fails on drift; run with -PupdateVectors to rewrite them.
     systemProperty("recoveryVectorsFile", rootProject.file("docs/recovery-vectors.json").absolutePath)
+    systemProperty("recoverySpecFile", rootProject.file("docs/RECOVERY-SPEC.md").absolutePath)
     if (project.hasProperty("updateVectors")) {
         systemProperty("updateVectors", "true")
     }
