@@ -51,6 +51,16 @@ During sharing, another app may save it and be backed up somewhere, defeating th
 - `:sskr` — pure-JVM Kotlin crypto core (no Android dependency), JUnit-tested.
 - `:app` — Android application, depends on `:sskr`.
 
+## Recovery and longevity
+
+Shards stay recoverable beyond this app. A clean-room recovery specification
+([docs/RECOVERY-SPEC.md](docs/RECOVERY-SPEC.md)), known-answer vectors, and a
+self-contained offline recovery page (`ShardQuorum-recover.html`, built from
+`web/recover/`) can rebuild a secret with no Android dependency, and the spec is
+written to be reimplementable by a programmer or an LLM if no shipped tool runs.
+See [docs/RECOVERY-BUNDLE.md](docs/RECOVERY-BUNDLE.md). Storing the bundle ROOT
+with your shards is a recommended manual step.
+
 ## References
 
 - [https://en.wikipedia.org/wiki/Shamir%27s_secret_sharing](https://en.wikipedia.org/wiki/Shamir%27s_secret_sharing)
