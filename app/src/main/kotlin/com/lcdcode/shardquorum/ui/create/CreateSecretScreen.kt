@@ -36,12 +36,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lcdcode.shardquorum.R
 import com.lcdcode.shardquorum.qr.QrPng
 import com.lcdcode.shardquorum.qr.ZxingQrDecoder
 import com.lcdcode.shardquorum.ui.QrImage
 import com.lcdcode.shardquorum.ui.components.ShardInputPanel
+import java.io.File
 
 @Composable
 fun CreateSecretScreen(onExit: () -> Unit, viewModel: CreateSecretViewModel = viewModel()) {
@@ -209,6 +211,7 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
     var showConfirm by rememberSaveable { mutableStateOf(false) }
     var showShareWarning by rememberSaveable { mutableStateOf(false) }
     var shareWarningAcknowledged by rememberSaveable { mutableStateOf(false) }
+    var showShareOptions by rememberSaveable { mutableStateOf(false) }
     var showSaveOptions by rememberSaveable { mutableStateOf(false) }
     val current = shards[index]
     val context = LocalContext.current
@@ -238,17 +241,55 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
         }
     }
 
-    fun launchShare() {
-        val send = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(Intent.EXTRA_TEXT, CreateSecretViewModel.shareText(current))
+    val baseName = "shardquorum-shard-${current.index}-of-${current.count}"
+
+    // The shard QR sheet: the shard code plus, in KEK mode, the recovery
+    // envelope code, so a saved or shared image always carries everything.
+    fun buildShardPng(): ByteArray {
+        val sections = buildList {
+            add(
+                QrPng.LabeledQr(
+                    context.getString(R.string.png_label_shard, current.index, current.count),
+                    current.shareUrForQr,
+                ),
+            )
+            current.envelopeUrForQr?.let {
+                add(QrPng.LabeledQr(context.getString(R.string.png_label_envelope), it))
+            }
         }
+        return QrPng.encodeSheet(current.secretName, sections)
+    }
+
+    fun chooserFor(send: Intent) {
         context.startActivity(
             Intent.createChooser(send, context.getString(R.string.shard_share_chooser)),
         )
     }
 
-    val baseName = "shardquorum-shard-${current.index}-of-${current.count}"
+    fun shareWords() {
+        chooserFor(
+            Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, CreateSecretViewModel.shareText(current))
+            },
+        )
+    }
+
+    fun shareQrImage() {
+        // Stage into cache/shared, keeping only the current shard so no extra
+        // shard images linger on disk after a share.
+        val dir = File(context.cacheDir, "shared").apply { mkdirs() }
+        dir.listFiles()?.forEach { it.delete() }
+        val file = File(dir, "$baseName.png").apply { writeBytes(buildShardPng()) }
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        chooserFor(
+            Intent(Intent.ACTION_SEND).apply {
+                type = "image/png"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            },
+        )
+    }
 
     BackHandler { showConfirm = true }
 
@@ -267,9 +308,23 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
             onConfirm = {
                 showShareWarning = false
                 shareWarningAcknowledged = true
-                launchShare()
+                showShareOptions = true
             },
             onDismiss = { showShareWarning = false },
+        )
+    }
+
+    if (showShareOptions) {
+        ShareOptionsDialog(
+            onShareQr = {
+                showShareOptions = false
+                shareQrImage()
+            },
+            onShareWords = {
+                showShareOptions = false
+                shareWords()
+            },
+            onDismiss = { showShareOptions = false },
         )
     }
 
@@ -277,18 +332,7 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
         SaveOptionsDialog(
             onSaveQr = {
                 showSaveOptions = false
-                val sections = buildList {
-                    add(
-                        QrPng.LabeledQr(
-                            context.getString(R.string.png_label_shard, current.index, current.count),
-                            current.shareUrForQr,
-                        ),
-                    )
-                    current.envelopeUrForQr?.let {
-                        add(QrPng.LabeledQr(context.getString(R.string.png_label_envelope), it))
-                    }
-                }
-                pendingPng = QrPng.encodeSheet(current.secretName, sections)
+                pendingPng = buildShardPng()
                 savePngLauncher.launch("$baseName.png")
             },
             onSaveWords = {
@@ -353,7 +397,9 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
                 Text(stringResource(R.string.shard_save))
             }
             OutlinedButton(
-                onClick = { if (shareWarningAcknowledged) launchShare() else showShareWarning = true },
+                onClick = {
+                    if (shareWarningAcknowledged) showShareOptions = true else showShareWarning = true
+                },
                 modifier = Modifier.weight(1f),
             ) {
                 Text(stringResource(R.string.shard_share))
@@ -395,6 +441,34 @@ private fun SaveOptionsDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.shard_save_cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun ShareOptionsDialog(
+    onShareQr: () -> Unit,
+    onShareWords: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.shard_share_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onShareQr, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.shard_share_qr))
+                }
+                OutlinedButton(onClick = onShareWords, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.shard_share_words))
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.shard_share_cancel))
             }
         },
     )
