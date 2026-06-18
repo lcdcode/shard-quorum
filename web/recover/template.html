@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ShardQuorum Recovery</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; line-height: 1.5;
+         margin: 0; padding: 0 16px 48px; max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin: 16px 0 4px; }
+  h2 { font-size: 1.1rem; margin: 24px 0 8px; }
+  p.sub { margin: 0 0 12px; opacity: 0.8; }
+  label { display: block; font-weight: 600; margin: 12px 0 4px; }
+  textarea, input { width: 100%; font-family: ui-monospace, Menlo, Consolas, monospace;
+                    font-size: 0.9rem; padding: 8px; border: 1px solid #888; border-radius: 6px;
+                    background: canvas; color: canvastext; }
+  textarea { resize: vertical; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  button { font-size: 0.95rem; padding: 8px 16px; border-radius: 6px; border: 1px solid #888;
+           cursor: pointer; background: ButtonFace; color: ButtonText; }
+  button.primary { font-weight: 700; }
+  .out { white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, monospace;
+         font-size: 0.9rem; padding: 12px; border-radius: 6px; margin-top: 12px; min-height: 1em;
+         border: 1px solid #8884; }
+  .out.ok { border-color: #2a7; } .out.err { border-color: #c44; }
+  .banner { padding: 10px 12px; border-radius: 6px; margin: 12px 0; font-size: 0.9rem;
+            border: 1px solid #8884; }
+  .banner.warn { border-color: #c93; } .banner.ok { border-color: #2a7; }
+  details { margin-top: 24px; } summary { cursor: pointer; font-weight: 600; }
+  details p, details li { font-size: 0.92rem; }
+  code { font-family: ui-monospace, monospace; }
+</style>
+</head>
+<body>
+  <h1>ShardQuorum Recovery</h1>
+  <p class="sub">Offline recovery tool. Reconstructs a secret from a quorum of shards.</p>
+
+  <div id="net-banner" class="banner"></div>
+
+  <label for="shards">Shards (one per line)</label>
+  <textarea id="shards" rows="8" placeholder="Paste each shard on its own line.
+Either the printed words (e.g. tuna next keep ...) or its ur:sskr/... string."></textarea>
+
+  <label for="envelope">Recovery envelope (encrypted mode only)</label>
+  <input id="envelope" type="text" placeholder="ur:sq-env/...  (leave blank for direct mode)">
+
+  <div class="row">
+    <button id="recover-btn" class="primary">Recover secret</button>
+    <button id="wipe-btn">Clear</button>
+  </div>
+
+  <div id="output" class="out"></div>
+
+  <h2>Self-test</h2>
+  <p class="sub">Built-in vectors prove this tool recovers correctly. It runs on load.</p>
+  <div class="row"><button id="selftest-btn">Run self-test</button></div>
+  <div id="selftest-out" class="out"></div>
+
+  <details>
+    <summary>How to use this, and how it works</summary>
+    <p>Enter at least the quorum (K) of your shards, one per line, as either the printed
+       ByteWords or the <code>ur:sskr/</code> string. In encrypted-envelope mode, also paste
+       the <code>ur:sq-env/</code> envelope. Press Recover.</p>
+    <p>This file is self-contained: all logic runs on your device, and it never makes a
+       network request. For a real recovery, disconnect from networks first and verify this
+       file's checksum against the value stored with your shards.</p>
+    <p>The algorithm is specified in full in <code>docs/RECOVERY-SPEC.md</code>. This tool is
+       one implementation of it; the specification plus its test vectors are the root artifact,
+       so the secret stays recoverable even if this file is lost.</p>
+  </details>
+
+<script id="sq-vectors" type="application/json">__VECTORS_JSON__</script>
+<script>
+//__CORE_JS__
+</script>
+<script>
+//__UI_JS__
+</script>
+</body>
+</html>

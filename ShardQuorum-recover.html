@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ShardQuorum Recovery</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; line-height: 1.5;
+         margin: 0; padding: 0 16px 48px; max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin: 16px 0 4px; }
+  h2 { font-size: 1.1rem; margin: 24px 0 8px; }
+  p.sub { margin: 0 0 12px; opacity: 0.8; }
+  label { display: block; font-weight: 600; margin: 12px 0 4px; }
+  textarea, input { width: 100%; font-family: ui-monospace, Menlo, Consolas, monospace;
+                    font-size: 0.9rem; padding: 8px; border: 1px solid #888; border-radius: 6px;
+                    background: canvas; color: canvastext; }
+  textarea { resize: vertical; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  button { font-size: 0.95rem; padding: 8px 16px; border-radius: 6px; border: 1px solid #888;
+           cursor: pointer; background: ButtonFace; color: ButtonText; }
+  button.primary { font-weight: 700; }
+  .out { white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, monospace;
+         font-size: 0.9rem; padding: 12px; border-radius: 6px; margin-top: 12px; min-height: 1em;
+         border: 1px solid #8884; }
+  .out.ok { border-color: #2a7; } .out.err { border-color: #c44; }
+  .banner { padding: 10px 12px; border-radius: 6px; margin: 12px 0; font-size: 0.9rem;
+            border: 1px solid #8884; }
+  .banner.warn { border-color: #c93; } .banner.ok { border-color: #2a7; }
+  details { margin-top: 24px; } summary { cursor: pointer; font-weight: 600; }
+  details p, details li { font-size: 0.92rem; }
+  code { font-family: ui-monospace, monospace; }
+</style>
+</head>
+<body>
+  <h1>ShardQuorum Recovery</h1>
+  <p class="sub">Offline recovery tool. Reconstructs a secret from a quorum of shards.</p>
+
+  <div id="net-banner" class="banner"></div>
+
+  <label for="shards">Shards (one per line)</label>
+  <textarea id="shards" rows="8" placeholder="Paste each shard on its own line.
+Either the printed words (e.g. tuna next keep ...) or its ur:sskr/... string."></textarea>
+
+  <label for="envelope">Recovery envelope (encrypted mode only)</label>
+  <input id="envelope" type="text" placeholder="ur:sq-env/...  (leave blank for direct mode)">
+
+  <div class="row">
+    <button id="recover-btn" class="primary">Recover secret</button>
+    <button id="wipe-btn">Clear</button>
+  </div>
+
+  <div id="output" class="out"></div>
+
+  <h2>Self-test</h2>
+  <p class="sub">Built-in vectors prove this tool recovers correctly. It runs on load.</p>
+  <div class="row"><button id="selftest-btn">Run self-test</button></div>
+  <div id="selftest-out" class="out"></div>
+
+  <details>
+    <summary>How to use this, and how it works</summary>
+    <p>Enter at least the quorum (K) of your shards, one per line, as either the printed
+       ByteWords or the <code>ur:sskr/</code> string. In encrypted-envelope mode, also paste
+       the <code>ur:sq-env/</code> envelope. Press Recover.</p>
+    <p>This file is self-contained: all logic runs on your device, and it never makes a
+       network request. For a real recovery, disconnect from networks first and verify this
+       file's checksum against the value stored with your shards.</p>
+    <p>The algorithm is specified in full in <code>docs/RECOVERY-SPEC.md</code>. This tool is
+       one implementation of it; the specification plus its test vectors are the root artifact,
+       so the secret stays recoverable even if this file is lost.</p>
+  </details>
+
+<script id="sq-vectors" type="application/json">{
+  "specVersion": 1,
+  "sqkeEnvelopeVersion": 1,
+  "note": "Deterministic, reproducible recovery vectors for ShardQuorum. Any 'threshold' of a vector's shares reconstruct it. In kek mode the envelope is also required. An implementation is correct iff it reproduces every value here.",
+  "vectors": [
+    {
+      "name": "direct-2of3-16byte",
+      "mode": "direct",
+      "threshold": 2,
+      "shareCount": 3,
+      "secretHex": "00112233445566778899aabbccddeeff",
+      "shares": [
+        {
+          "memberIndex": 0,
+          "serializedHex": "88ef0001001cd4e5c0dae7fdb7b107446b33d501d0",
+          "header": {
+            "identifier": 35055,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 2,
+            "memberIndex": 0
+          },
+          "ur": "ur:sskr/golowsaeadaecetyvwrttnvdzcrlpaatfyjeeotladtizmcwmyhn",
+          "standardBytewords": "tuna next keep gyro logo webs able acid able code tiny view rust twin void zinc real puma aunt foxy jade echo toil acid taxi wasp vial down numb"
+        },
+        {
+          "memberIndex": 1,
+          "serializedHex": "88ef000101577b72512b2b60743bf682733235dbc9",
+          "header": {
+            "identifier": 35055,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 2,
+            "memberIndex": 1
+          },
+          "ur": "ur:sskr/golowsaeadadhgkgjpgydndnhnjyfrynlfjkeyecuysomymhdwst",
+          "standardBytewords": "tuna next keep gyro logo webs able acid acid hang king jump gray down down horn jury fair yawn leaf junk easy epic ugly solo news iris logo aunt"
+        },
+        {
+          "memberIndex": 2,
+          "serializedHex": "88ef0001028a91d0f92364dc2abefed35b310eaee2",
+          "header": {
+            "identifier": 35055,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 2,
+            "memberIndex": 2
+          },
+          "ur": "ur:sskr/golowsaeadaolemetiytcnieuodrrnzetehpehbaplvokgwzylkn",
+          "standardBytewords": "tuna next keep gyro logo webs able acid also love maze taxi yurt cyan idle undo door ruin zone time help each beta pool veto iris back guru road"
+        }
+      ]
+    },
+    {
+      "name": "direct-3of5-32byte",
+      "mode": "direct",
+      "threshold": 3,
+      "shareCount": 5,
+      "secretHex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "shares": [
+        {
+          "memberIndex": 0,
+          "serializedHex": "26c2000200030f0ec0d9409347d0534277d38f43ec5963af57c802947a4d301e07406ac590",
+          "header": {
+            "identifier": 9922,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 3,
+            "memberIndex": 0
+          },
+          "ur": "ur:sskr/hddadssaaeaoaeaxbsbarttafzmufltigufwkttemyfxwphkiapehgspaomwkngtdyckatfzimskmhtpwfherp",
+          "standardBytewords": "tuna next keep hard data days saga able also able apex bias beta rust tuna fizz menu fuel taxi guru flew kept time many flux wasp hawk idea pose hang soap also meow kiln gift duty cook aunt fizz item silk math figs gear tiny legs"
+        },
+        {
+          "memberIndex": 1,
+          "serializedHex": "26c20002014e4d8244f9dbc8a99633e8c0aee7cdffde4c4e4519e5d06d3dd6fe5573ba065c",
+          "header": {
+            "identifier": 9922,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 3,
+            "memberIndex": 1
+          },
+          "ur": "ur:sskr/hddadssaaeaoadglgtlffyytuyspptmteovsrtplvdsnzmuegsglfecfvwtijnfstbzegojkrdamhhlykeaomu",
+          "standardBytewords": "tuna next keep hard data days saga able also acid girl gift leaf foxy yurt ugly soap part mint echo vows rust pool void swan zoom urge gems girl free chef view taxi join figs tomb zone gyro junk road atom high idle sets loud oval"
+        },
+        {
+          "memberIndex": 2,
+          "serializedHex": "26c2000202eadcd80576a3a8441694351173b9b48cdc1be4e937391ad356b44ea90ac03157",
+          "header": {
+            "identifier": 9922,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 3,
+            "memberIndex": 2
+          },
+          "ur": "ur:sskr/hddadssaaeaoaowduotpahkootpdfycmmwecbyjkrhqzlkuocwvewlemescytehfqzglptbkrtehhgnnioiedw",
+          "standardBytewords": "tuna next keep hard data days saga able also also wand undo trip arch keno omit paid foxy calm meow epic body junk rich quiz luck undo claw vibe wall exam eyes city time half quiz girl part back rust each hang king user webs chef"
+        },
+        {
+          "memberIndex": 3,
+          "serializedHex": "26c2000203a79e54815638f3aa50f49fa60ed13a9f5b3405fbe6de5ec42652aefb3910f29b",
+          "header": {
+            "identifier": 9922,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 3,
+            "memberIndex": 3
+          },
+          "ur": "ur:sskr/hddadssaaeaoaxosnnghlyhfetwfpkgdwkneolbattftnehpeeahzovauehyssdsgmplzoesbewzndstvsesas",
+          "standardBytewords": "tuna next keep hard data days saga able also apex owls noon gush lazy half exit wolf peck good work note oval beta tent fact note help edge arch zero visa urge holy sets days grim pool zero eyes blue whiz need cusp good purr fern"
+        },
+        {
+          "memberIndex": 4,
+          "serializedHex": "26c20002041df5c0240d88e77c74da4cf7fb565b2f3e0b476e2ee18b19ba74a4686461890e",
+          "header": {
+            "identifier": 9922,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 3,
+            "memberIndex": 4
+          },
+          "ur": "ur:sskr/hddadssaaeaoaacaykrtdkbtlovdkejytngsylzohfhpdlfmbdfljtdmvylucfrdjyoxisiehsldbarkckmoay",
+          "standardBytewords": "tuna next keep hard data days saga able also aqua cola yank rust dark belt logo void kite jury twin gems yell zero half help dull film bald fuel jolt drum very luau chef road jury onyx iris idle huts loud beta holy oval chef figs"
+        }
+      ]
+    },
+    {
+      "name": "kek-2of3-text",
+      "mode": "kek",
+      "threshold": 2,
+      "shareCount": 3,
+      "secretHex": "7661756c74206d6173746572206b6579",
+      "secretUtf8": "vault master key",
+      "combinedKekHex": "fa18d8c3471efcc184e5579610ac5c0e86f6debdc891b53fec86dcfc817436bc",
+      "envelope": {
+        "rawHex": "53514b45016e9b70f5decf54c34162e19e5c31963fa29673e43860e0ea888a12d5443aee93459cce2bd3c824e36b718c0c",
+        "ur": "ur:sq-env/hdehgugygrfeadjtndjoykuetkghsrfpidvynnhhehmtfhoemtjkveethnvtwdlolebgtlfyftwymufenstodntespdkvljejslkbnlpchctmu"
+      },
+      "shares": [
+        {
+          "memberIndex": 0,
+          "serializedHex": "8f8c000100efa5b7ade4723c7250bcb373152a567b720f08feb50710d20cef42b9cbcdb4f2",
+          "header": {
+            "identifier": 36748,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 2,
+            "memberIndex": 0
+          },
+          "ur": "ur:sskr/hddamylkaeadaewsonrlpmvejpfnjpgdrfqdjkbzdrhfkgjpbsayzereatbetdbnwsfwrhsbsnqzwzfnmdpepr",
+          "standardBytewords": "tuna next keep hard data many luck able acid able webs open real poem vibe jump fern jump good roof quad junk buzz door half king jump bias away zone race aunt blue tied barn webs flew rich stub swan quiz whiz tuna drop dark list"
+        },
+        {
+          "memberIndex": 1,
+          "serializedHex": "8f8c00010158ddefe9ef0effa238daad7179e08e20b746589b0e16533062ffb39452c50e1b",
+          "header": {
+            "identifier": 36748,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 2,
+            "memberIndex": 1
+          },
+          "ur": "ur:sskr/hddamylkaeadadhdutwswlwsbazmoeettnpmjskkvtmncxrlfghdndbacmgudyidzmqdmwgmskbacwkesoghlf",
+          "standardBytewords": "tuna next keep hard data many luck able acid acid hard unit webs wall webs beta zoom oboe exit twin poem jugs kick vast main crux real frog hard need beta calm guru duty iced zoom quad meow grim silk beta claw nail jugs user real"
+        },
+        {
+          "memberIndex": 2,
+          "serializedHex": "8f8c0001029a550725f28aa1c980708f77cda5fdcde39da834d825960dd0cfbbe3e2dddb3b",
+          "header": {
+            "identifier": 36748,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 2,
+            "memberIndex": 2
+          },
+          "ur": "ur:sskr/hddamylkaeadaonygoatdawzleoysolajomyktsnonzcsnvlntpdeetpdamtbttitkrkvlvoutuyfreycepkat",
+          "standardBytewords": "tuna next keep hard data many luck able acid also navy gyro aunt data whiz love obey solo lava judo many kept swan open zinc swan vial next paid edge trip data mint belt taxi task rock vial veto unit ugly fair toys onyx curl easy"
+        }
+      ]
+    },
+    {
+      "name": "kek-3of5-text",
+      "mode": "kek",
+      "threshold": 3,
+      "shareCount": 5,
+      "secretHex": "636f727265637420686f727365206261747465727920737461706c65",
+      "secretUtf8": "correct horse battery staple",
+      "combinedKekHex": "c9e25f1b10447959e5688c3e8552977f4359528bc63713908740d2c91af6faba",
+      "envelope": {
+        "rawHex": "53514b4501bf762793c3578cd238d152a4683d946e0f280d915ea1c103917c6eede9aff79f5aa495d501462308a6faa636923ccf8eb5a25bcf0f23b4f7",
+        "ur": "ur:sq-env/hdfsgugygrfeadrskodimusrhglktdetttgmoxisfsmwjtbsdebtmehyoyseaxmekejtwewlpeylnehtoxmdtladfgcnayolzsolenmofntkmnreoehptkbscnqzylgtbdhdat"
+      },
+      "shares": [
+        {
+          "memberIndex": 0,
+          "serializedHex": "1a03000200743375038183367bb047adb3090ee37cfeefe07af7fbb5d9964d4bfd5da67590",
+          "header": {
+            "identifier": 6659,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 3,
+            "memberIndex": 0
+          },
+          "ur": "ur:sskr/hddacyaxaeaoaejyeokpaxlylsenkgpfflpmqdasbavlkezewsvtknylzoretamtgtgrzchlolkpmhmdkicftk",
+          "standardBytewords": "tuna next keep hard data city apex able also able jury echo keep apex lazy legs even king puff fuel poem quad axis beta vial kite zone webs vast kiln yell zero race tuna mint gift gear zinc hill oval keep math judo silk memo zaps"
+        },
+        {
+          "memberIndex": 1,
+          "serializedHex": "1a030002013224038742813b65f097f96ed2173b6633d0b64b7d118786289a124f8833a25b",
+          "header": {
+            "identifier": 6659,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 3,
+            "memberIndex": 1
+          },
+          "ur": "ur:sskr/hddacyaxaeaoadeydkaxltfwlyfrihwtmsytjttdchfriyeotirpgrkibyltlndenybggwloeooehptnwlwzbw",
+          "standardBytewords": "tuna next keep hard data city apex able also acid easy dark apex list flew lazy fair inch what miss yurt jolt tied cash fair inky echo taxi ramp gear kiwi body list lion dice navy brag glow logo echo oboe help fish gray kick days"
+        },
+        {
+          "memberIndex": 2,
+          "serializedHex": "1a030002022ab225c7e7d349e7fe3128696993b99a0db562170a8051b4919fde6d38edaf57",
+          "header": {
+            "identifier": 6659,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 3,
+            "memberIndex": 2
+          },
+          "ur": "ur:sskr/hddacyaxaeaoaodrprdastvdtegavdzeehdeininmurhnybtreidchbklagyqzmeneuejnetwepehgoxwerfge",
+          "standardBytewords": "tuna next keep hard data city apex able also also door purr data slot void time gala void zone each dice iron iron menu rich navy belt race iced cash back lava gray quiz maze note urge join exit wave pose hang flap gyro exam lamb"
+        },
+        {
+          "memberIndex": 3,
+          "serializedHex": "1a030002036ca5534324d144f9bee17cb4b28a6180c08a3426806a63eb2f4887dfed78789c",
+          "header": {
+            "identifier": 6659,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 3,
+            "memberIndex": 3
+          },
+          "ur": "ur:sskr/hddacyaxaeaoaxjzongufxdkttfyytrnvykeqzprlehslartleeedslaimiawmdlfdlturweksksnswmkkhgmt",
+          "standardBytewords": "tuna next keep hard data city apex able also apex jazz open guru flux dark tent foxy yurt ruin very kite quiz purr love huts lava rust love edge days lava item idea warm dull fund list user wave keys keys news beta safe undo omit"
+        },
+        {
+          "memberIndex": 4,
+          "serializedHex": "1a03000204ada013e18c6847ee39b208ebd0a5beced0cb479cf3eb50620375e657eac37d36",
+          "header": {
+            "identifier": 6659,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 3,
+            "memberIndex": 4
+          },
+          "ur": "ur:sskr/hddacyaxaeaoaapmnbbwvylkisflwyespraywmtionrntotisbflnswfwmgdidaxkpvahgwdsrkienmogegrhn",
+          "standardBytewords": "tuna next keep hard data city apex able also aqua poem numb brew very luck iris fuel waxy eyes purr away warm taxi open ruin taco taxi stub fuel news wolf warm good iced apex keep visa hang wand scar kiwi even kept whiz rust gyro"
+        }
+      ]
+    }
+  ]
+}</script>
+<script>
+/*
+ * ShardQuorum recovery core - pure JavaScript, no DOM, no network, no Web Crypto.
+ *
+ * Implements docs/RECOVERY-SPEC.md: ByteWords + CRC-32, UR/CBOR framing, the SSKR
+ * 5-byte header, GF(256) Shamir combine with the SLIP-39 HMAC digest, and the
+ * SQKE envelope (AES-256-GCM). All cryptography (SHA-256, HMAC, AES, GCM) is
+ * hand-implemented from public standards so the file depends only on a plain JS
+ * engine. Validated against docs/recovery-vectors.json.
+ *
+ * Recovery only: there is deliberately no generation path.
+ *
+ * Loads in both Node (module.exports) and the browser (globalThis.ShardQuorumCore).
+ */
+(function (root) {
+  'use strict';
+
+  // --- hex helpers ---------------------------------------------------------
+
+  function toHex(bytes) {
+    let s = '';
+    for (let i = 0; i < bytes.length; i++) s += (bytes[i] & 0xff).toString(16).padStart(2, '0');
+    return s;
+  }
+
+  function fromHex(hex) {
+    const out = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16);
+    return out;
+  }
+
+  function bytesEqual(a, b) {
+    if (a.length !== b.length) return false;
+    let diff = 0;
+    for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+    return diff === 0;
+  }
+
+  function concatBytes(a, b) {
+    const out = new Uint8Array(a.length + b.length);
+    out.set(a, 0);
+    out.set(b, a.length);
+    return out;
+  }
+
+  // --- ByteWords (BCR-2020-012) + CRC-32 -----------------------------------
+
+  const WORDS = (
+    'able acid also apex aqua arch atom aunt away axis back bald barn belt beta bias ' +
+    'blue body brag brew bulb buzz calm cash cats chef city claw code cola cook cost ' +
+    'crux curl cusp cyan dark data days deli dice diet door down draw drop drum dull ' +
+    'duty each easy echo edge epic even exam exit eyes fact fair fern figs film fish ' +
+    'fizz flap flew flux foxy free frog fuel fund gala game gear gems gift girl glow ' +
+    'good gray grim guru gush gyro half hang hard hawk heat help high hill holy hope ' +
+    'horn huts iced idea idle inch inky into iris iron item jade jazz join jolt jowl ' +
+    'judo jugs jump junk jury keep keno kept keys kick kiln king kite kiwi knob lamb ' +
+    'lava lazy leaf legs liar limp lion list logo loud love luau luck lung main many ' +
+    'math maze memo menu meow mild mint miss monk nail navy need news next noon note ' +
+    'numb obey oboe omit onyx open oval owls paid part peck play plus poem pool pose ' +
+    'puff puma purr quad quiz race ramp real redo rich road rock roof ruby ruin runs ' +
+    'rust safe saga scar sets silk skew slot soap solo song stub surf swan taco task ' +
+    'taxi tent tied time tiny toil tomb toys trip tuna twin ugly undo unit urge user ' +
+    'vast very veto vial vibe view visa void vows wall wand warm wasp wave waxy webs ' +
+    'what when whiz wolf work yank yawn yell yoga yurt zaps zero zest zinc zone zoom'
+  ).split(' ');
+
+  const wordToByte = {};
+  const minimalToByte = {};
+  for (let i = 0; i < WORDS.length; i++) {
+    const w = WORDS[i];
+    wordToByte[w] = i;
+    minimalToByte[w[0] + w[3]] = i;
+  }
+
+  const CRC_TABLE = (function () {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+
+  function crc32(bytes) {
+    let c = 0xffffffff;
+    for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  }
+
+  // Decode ByteWords ('standard' or 'minimal'), verify and strip the CRC-32.
+  function decodeBytewords(text, style) {
+    let raw;
+    if (style === 'minimal') {
+      const clean = text.trim().toLowerCase();
+      if (clean.length % 2 !== 0) throw new Error('minimal ByteWords need an even length');
+      raw = new Uint8Array(clean.length / 2);
+      for (let i = 0; i < clean.length; i += 2) {
+        const v = minimalToByte[clean[i] + clean[i + 1]];
+        if (v === undefined) throw new Error('unknown ByteWords pair: ' + clean.substr(i, 2));
+        raw[i / 2] = v;
+      }
+    } else {
+      const tokens = text.trim().toLowerCase().split(/\s+/).filter(function (t) { return t.length; });
+      raw = new Uint8Array(tokens.length);
+      for (let i = 0; i < tokens.length; i++) {
+        const v = wordToByte[tokens[i]];
+        if (v === undefined) throw new Error('unknown ByteWord: ' + tokens[i]);
+        raw[i] = v;
+      }
+    }
+    if (raw.length < 4) throw new Error('ByteWords input too short for a checksum');
+    const payload = raw.slice(0, raw.length - 4);
+    const provided = raw.slice(raw.length - 4);
+    const crc = crc32(payload);
+    const expected = new Uint8Array([crc >>> 24, (crc >>> 16) & 0xff, (crc >>> 8) & 0xff, crc & 0xff]);
+    if (!bytesEqual(provided, expected)) throw new Error('ByteWords checksum mismatch');
+    return payload;
+  }
+
+  // --- minimal CBOR (untagged byte string, optional tag #6.40309) ----------
+
+  const SSKR_CBOR_TAG = 40309;
+  const MAJOR_BYTE_STRING = 0x40; // major type 2 << 5
+  const MAJOR_TAG = 0xc0;         // major type 6 << 5
+
+  // Read a CBOR initial byte + argument at offset; returns {major, value, next}.
+  function readArgument(bytes, offset) {
+    const initial = bytes[offset];
+    const major = initial & 0xe0;
+    const ai = initial & 0x1f;
+    if (ai <= 23) return { major: major, value: ai, next: offset + 1 };
+    if (ai === 24) return { major: major, value: bytes[offset + 1], next: offset + 2 };
+    if (ai === 25) return { major: major, value: (bytes[offset + 1] << 8) | bytes[offset + 2], next: offset + 3 };
+    throw new Error('unsupported CBOR additional info ' + ai);
+  }
+
+  function readUntaggedByteString(bytes, offset) {
+    const a = readArgument(bytes, offset);
+    if (a.major !== MAJOR_BYTE_STRING) throw new Error('expected a CBOR byte string');
+    const end = a.next + a.value;
+    if (end !== bytes.length) throw new Error('trailing or missing CBOR data');
+    return bytes.slice(a.next, end);
+  }
+
+  function readTaggedByteString(bytes) {
+    const tag = readArgument(bytes, 0);
+    if (tag.major !== MAJOR_TAG || tag.value !== SSKR_CBOR_TAG) {
+      throw new Error('expected SSKR CBOR tag ' + SSKR_CBOR_TAG);
+    }
+    return readUntaggedByteString(bytes, tag.next);
+  }
+
+  // --- input parsing (UR / standard ByteWords) -----------------------------
+
+  const SHARE_UR_PREFIX = 'ur:sskr/';
+  const ENVELOPE_UR_PREFIX = 'ur:sq-env/';
+
+  // Parse one recovery input string into {kind:'share', bytes, header} or
+  // {kind:'envelope', bytes}.
+  function parseInput(text) {
+    const trimmed = text.trim();
+    if (!trimmed.length) throw new Error('empty input');
+    const lower = trimmed.toLowerCase();
+    if (lower.startsWith(SHARE_UR_PREFIX)) {
+      const body = trimmed.substring(SHARE_UR_PREFIX.length);
+      const bytes = readUntaggedByteString(decodeBytewords(body, 'minimal'), 0);
+      return { kind: 'share', bytes: bytes, header: parseShareHeader(bytes) };
+    }
+    if (lower.startsWith(ENVELOPE_UR_PREFIX)) {
+      const body = trimmed.substring(ENVELOPE_UR_PREFIX.length);
+      return { kind: 'envelope', bytes: readUntaggedByteString(decodeBytewords(body, 'minimal'), 0) };
+    }
+    const bytes = readTaggedByteString(decodeBytewords(trimmed, 'standard'));
+    return { kind: 'share', bytes: bytes, header: parseShareHeader(bytes) };
+  }
+
+  // --- SSKR share header (BCR-2020-011) ------------------------------------
+
+  function parseShareHeader(bytes) {
+    if (bytes.length <= 5) throw new Error('share too short for a value');
+    if ((bytes[4] & 0xf0) !== 0) throw new Error('reserved nibble must be zero');
+    return {
+      identifier: (bytes[0] << 8) | bytes[1],
+      groupThreshold: (bytes[2] >> 4) + 1,
+      groupCount: (bytes[2] & 0x0f) + 1,
+      groupIndex: bytes[3] >> 4,
+      memberThreshold: (bytes[3] & 0x0f) + 1,
+      memberIndex: bytes[4] & 0x0f,
+      value: bytes.slice(5)
+    };
+  }
+
+  // --- GF(256) field (Shamir; reducing poly 0x11b, generator 3) ------------
+
+  const GF_EXP = new Uint8Array(255);
+  const GF_LOG = new Uint8Array(256);
+  (function () {
+    let poly = 1;
+    for (let i = 0; i < 255; i++) {
+      GF_EXP[i] = poly;
+      GF_LOG[poly] = i;
+      poly = (poly << 1) ^ poly;          // multiply by generator 3 = x + 1
+      if (poly & 0x100) poly ^= 0x11b;    // reduce mod the field polynomial
+    }
+  })();
+
+  function gfMul(a, b) {
+    if (a === 0 || b === 0) return 0;
+    return GF_EXP[(GF_LOG[a] + GF_LOG[b]) % 255];
+  }
+
+  function gfDiv(a, b) {
+    if (b === 0) throw new Error('division by zero in GF(256)');
+    if (a === 0) return 0;
+    return GF_EXP[(GF_LOG[a] - GF_LOG[b] + 255) % 255];
+  }
+
+  // Lagrange interpolation at x over points [[xi, Uint8Array], ...].
+  function interpolate(points, x) {
+    for (let i = 0; i < points.length; i++) if (points[i][0] === x) return points[i][1].slice();
+    const length = points[0][1].length;
+    const seen = {};
+    for (let i = 0; i < points.length; i++) {
+      if (points[i][1].length !== length) throw new Error('sample vectors differ in length');
+      if (seen[points[i][0]]) throw new Error('interpolation x-coordinates must be distinct');
+      seen[points[i][0]] = true;
+    }
+    const result = new Uint8Array(length);
+    for (let i = 0; i < points.length; i++) {
+      const xi = points[i][0];
+      const yi = points[i][1];
+      let num = 1, den = 1;
+      for (let j = 0; j < points.length; j++) {
+        if (j === i) continue;
+        const xj = points[j][0];
+        num = gfMul(num, x ^ xj);
+        den = gfMul(den, xi ^ xj);
+      }
+      const coeff = gfDiv(num, den);
+      for (let k = 0; k < length; k++) result[k] ^= gfMul(coeff, yi[k]);
+    }
+    return result;
+  }
+
+  const SECRET_INDEX = 255;
+  const DIGEST_INDEX = 254;
+  const DIGEST_LENGTH = 4;
+
+  // Shamir combine: threshold K and a map {memberIndex: Uint8Array value}.
+  function shamirCombine(threshold, shareMap) {
+    const points = [];
+    Object.keys(shareMap).forEach(function (k) { points.push([parseInt(k, 10), shareMap[k]]); });
+    points.sort(function (a, b) { return a[0] - b[0]; });
+    if (points.length < threshold) throw new Error('need at least ' + threshold + ' shares');
+    const defining = points.slice(0, threshold);
+    const secret = interpolate(defining, SECRET_INDEX);
+    const digestShare = interpolate(defining, DIGEST_INDEX);
+
+    for (let i = threshold; i < points.length; i++) {
+      if (!bytesEqual(interpolate(defining, points[i][0]), points[i][1])) {
+        throw new Error('inconsistent surplus share at index ' + points[i][0]);
+      }
+    }
+    const recoveredDigest = digestShare.slice(0, DIGEST_LENGTH);
+    const randomPart = digestShare.slice(DIGEST_LENGTH);
+    const expected = hmacSha256(randomPart, secret).slice(0, DIGEST_LENGTH);
+    if (!bytesEqual(recoveredDigest, expected)) {
+      throw new Error('share digest mismatch: wrong, insufficient, or corrupted shares');
+    }
+    return secret;
+  }
+
+  // Combine serialized SSKR shares (single-group) into the secret/KEK.
+  function combineShares(serializedShares) {
+    if (!serializedShares.length) throw new Error('no shares provided');
+    const headers = serializedShares.map(parseShareHeader);
+    const id = headers[0].identifier;
+    headers.forEach(function (h) {
+      if (h.identifier !== id) throw new Error('shares come from different splits');
+      if (h.groupCount !== 1 || h.groupThreshold !== 1) throw new Error('multi-group SSKR not supported');
+    });
+    const threshold = headers[0].memberThreshold;
+    const shareMap = {};
+    headers.forEach(function (h) { shareMap[h.memberIndex] = h.value; });
+    if (Object.keys(shareMap).length < threshold) {
+      throw new Error('need at least ' + threshold + ' distinct shares, got ' + Object.keys(shareMap).length);
+    }
+    return shamirCombine(threshold, shareMap);
+  }
+
+  // --- SHA-256 + HMAC ------------------------------------------------------
+
+  const SHA_K = new Uint32Array([
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+  ]);
+
+  function rotr(x, n) { return (x >>> n) | (x << (32 - n)); }
+
+  function sha256(data) {
+    const h = new Uint32Array([
+      0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
+    ]);
+    const l = data.length;
+    const k = (56 - (l + 1) % 64 + 64) % 64;
+    const msg = new Uint8Array(l + 1 + k + 8);
+    msg.set(data, 0);
+    msg[l] = 0x80;
+    const bits = l * 8;
+    const hi = Math.floor(bits / 0x100000000);
+    const lo = bits >>> 0;
+    const dv = new DataView(msg.buffer);
+    dv.setUint32(msg.length - 8, hi);
+    dv.setUint32(msg.length - 4, lo);
+
+    const w = new Uint32Array(64);
+    for (let off = 0; off < msg.length; off += 64) {
+      for (let i = 0; i < 16; i++) w[i] = dv.getUint32(off + i * 4);
+      for (let i = 16; i < 64; i++) {
+        const s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >>> 3);
+        const s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+        w[i] = (w[i - 16] + s0 + w[i - 7] + s1) >>> 0;
+      }
+      let a = h[0], b = h[1], c = h[2], d = h[3], e = h[4], f = h[5], g = h[6], hh = h[7];
+      for (let i = 0; i < 64; i++) {
+        const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
+        const ch = (e & f) ^ (~e & g);
+        const t1 = (hh + S1 + ch + SHA_K[i] + w[i]) >>> 0;
+        const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
+        const maj = (a & b) ^ (a & c) ^ (b & c);
+        const t2 = (S0 + maj) >>> 0;
+        hh = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+      }
+      h[0] = (h[0] + a) >>> 0; h[1] = (h[1] + b) >>> 0; h[2] = (h[2] + c) >>> 0; h[3] = (h[3] + d) >>> 0;
+      h[4] = (h[4] + e) >>> 0; h[5] = (h[5] + f) >>> 0; h[6] = (h[6] + g) >>> 0; h[7] = (h[7] + hh) >>> 0;
+    }
+    const out = new Uint8Array(32);
+    const odv = new DataView(out.buffer);
+    for (let i = 0; i < 8; i++) odv.setUint32(i * 4, h[i]);
+    return out;
+  }
+
+  function hmacSha256(key, message) {
+    const block = 64;
+    let k = key;
+    if (k.length > block) k = sha256(k);
+    const padded = new Uint8Array(block);
+    padded.set(k, 0);
+    const ipad = new Uint8Array(block);
+    const opad = new Uint8Array(block);
+    for (let i = 0; i < block; i++) { ipad[i] = padded[i] ^ 0x36; opad[i] = padded[i] ^ 0x5c; }
+    const inner = sha256(concatBytes(ipad, message));
+    return sha256(concatBytes(opad, inner));
+  }
+
+  // --- AES-256 (block encryption only; GCM never needs decryption) ---------
+
+  // S-box built from the GF(256) inverse (same field) + the AES affine map,
+  // so there are no 256 magic constants to mistranscribe.
+  const AES_SBOX = (function () {
+    const box = new Uint8Array(256);
+    for (let b = 0; b < 256; b++) {
+      const inv = b === 0 ? 0 : GF_EXP[(255 - GF_LOG[b]) % 255];
+      let s = inv;
+      s ^= ((inv << 1) | (inv >>> 7)) & 0xff;
+      s ^= ((inv << 2) | (inv >>> 6)) & 0xff;
+      s ^= ((inv << 3) | (inv >>> 5)) & 0xff;
+      s ^= ((inv << 4) | (inv >>> 4)) & 0xff;
+      box[b] = (s ^ 0x63) & 0xff;
+    }
+    return box;
+  })();
+
+  function aesKeyExpansion(key) {
+    const Nk = 8, Nr = 14;
+    const w = new Uint32Array(4 * (Nr + 1));
+    for (let i = 0; i < Nk; i++) {
+      w[i] = (key[4 * i] << 24) | (key[4 * i + 1] << 16) | (key[4 * i + 2] << 8) | key[4 * i + 3];
+    }
+    let rcon = 1;
+    for (let i = Nk; i < w.length; i++) {
+      let temp = w[i - 1];
+      if (i % Nk === 0) {
+        temp = ((temp << 8) | (temp >>> 24)) >>> 0; // RotWord
+        temp = (AES_SBOX[(temp >>> 24) & 0xff] << 24) | (AES_SBOX[(temp >>> 16) & 0xff] << 16) |
+               (AES_SBOX[(temp >>> 8) & 0xff] << 8) | AES_SBOX[temp & 0xff];
+        temp = (temp ^ (rcon << 24)) >>> 0;
+        rcon = gfMul(rcon, 2);
+      } else if (i % Nk === 4) {
+        temp = (AES_SBOX[(temp >>> 24) & 0xff] << 24) | (AES_SBOX[(temp >>> 16) & 0xff] << 16) |
+               (AES_SBOX[(temp >>> 8) & 0xff] << 8) | AES_SBOX[temp & 0xff];
+      }
+      w[i] = (w[i - Nk] ^ temp) >>> 0;
+    }
+    const rk = new Uint8Array(16 * (Nr + 1));
+    for (let i = 0; i < w.length; i++) {
+      rk[4 * i] = (w[i] >>> 24) & 0xff; rk[4 * i + 1] = (w[i] >>> 16) & 0xff;
+      rk[4 * i + 2] = (w[i] >>> 8) & 0xff; rk[4 * i + 3] = w[i] & 0xff;
+    }
+    return rk;
+  }
+
+  function aesEncryptBlock(block, rk) {
+    const Nr = 14;
+    const s = block.slice();
+    function addRoundKey(round) { for (let j = 0; j < 16; j++) s[j] ^= rk[round * 16 + j]; }
+    function subBytes() { for (let j = 0; j < 16; j++) s[j] = AES_SBOX[s[j]]; }
+    function shiftRows() {
+      const t = s.slice();
+      for (let r = 1; r < 4; r++) for (let c = 0; c < 4; c++) s[r + 4 * c] = t[r + 4 * ((c + r) % 4)];
+    }
+    function mixColumns() {
+      for (let c = 0; c < 4; c++) {
+        const a0 = s[4 * c], a1 = s[4 * c + 1], a2 = s[4 * c + 2], a3 = s[4 * c + 3];
+        s[4 * c] = gfMul(2, a0) ^ gfMul(3, a1) ^ a2 ^ a3;
+        s[4 * c + 1] = a0 ^ gfMul(2, a1) ^ gfMul(3, a2) ^ a3;
+        s[4 * c + 2] = a0 ^ a1 ^ gfMul(2, a2) ^ gfMul(3, a3);
+        s[4 * c + 3] = gfMul(3, a0) ^ a1 ^ a2 ^ gfMul(2, a3);
+      }
+    }
+    addRoundKey(0);
+    for (let r = 1; r < Nr; r++) { subBytes(); shiftRows(); mixColumns(); addRoundKey(r); }
+    subBytes(); shiftRows(); addRoundKey(Nr);
+    return s;
+  }
+
+  // --- AES-256-GCM decrypt (with authentication) ---------------------------
+
+  function gfMul128(X, Y) {
+    const z = new Uint8Array(16);
+    const v = Y.slice();
+    for (let i = 0; i < 128; i++) {
+      const bit = (X[i >> 3] >> (7 - (i & 7))) & 1;
+      if (bit) for (let k = 0; k < 16; k++) z[k] ^= v[k];
+      const lsb = v[15] & 1;
+      for (let k = 15; k > 0; k--) v[k] = ((v[k] >>> 1) | (v[k - 1] << 7)) & 0xff;
+      v[0] = v[0] >>> 1;
+      if (lsb) v[0] ^= 0xe1;
+    }
+    return z;
+  }
+
+  function ghash(H, aad, ct) {
+    let y = new Uint8Array(16);
+    function block(b16) {
+      for (let k = 0; k < 16; k++) y[k] ^= b16[k];
+      y = gfMul128(y, H);
+    }
+    function feed(data) {
+      for (let off = 0; off < data.length; off += 16) {
+        const chunk = new Uint8Array(16);
+        chunk.set(data.subarray(off, Math.min(off + 16, data.length)));
+        block(chunk);
+      }
+    }
+    feed(aad);
+    feed(ct);
+    const lenBlock = new Uint8Array(16);
+    const dv = new DataView(lenBlock.buffer);
+    dv.setUint32(0, Math.floor((aad.length * 8) / 0x100000000));
+    dv.setUint32(4, (aad.length * 8) >>> 0);
+    dv.setUint32(8, Math.floor((ct.length * 8) / 0x100000000));
+    dv.setUint32(12, (ct.length * 8) >>> 0);
+    block(lenBlock);
+    return y;
+  }
+
+  function inc32(block) {
+    for (let i = 15; i >= 12; i--) { block[i] = (block[i] + 1) & 0xff; if (block[i] !== 0) break; }
+  }
+
+  // Decrypt AES-256-GCM. nonce must be 12 bytes; ctWithTag includes the 16-byte
+  // tag. Throws on authentication failure. Returns the plaintext.
+  function aesGcmDecrypt(key, nonce, ctWithTag, aad) {
+    if (key.length !== 32) throw new Error('AES-256-GCM needs a 32-byte key');
+    if (nonce.length !== 12) throw new Error('this profile uses a 12-byte nonce');
+    if (ctWithTag.length < 16) throw new Error('ciphertext too short for a tag');
+    const rk = aesKeyExpansion(key);
+    const H = aesEncryptBlock(new Uint8Array(16), rk);
+    const j0 = new Uint8Array(16);
+    j0.set(nonce, 0);
+    j0[15] = 1;
+    const ct = ctWithTag.slice(0, ctWithTag.length - 16);
+    const tag = ctWithTag.slice(ctWithTag.length - 16);
+
+    const s = ghash(H, aad, ct);
+    const ej0 = aesEncryptBlock(j0, rk);
+    const computedTag = new Uint8Array(16);
+    for (let i = 0; i < 16; i++) computedTag[i] = s[i] ^ ej0[i];
+    if (!bytesEqual(computedTag, tag)) {
+      throw new Error('envelope authentication failed: wrong shares/KEK or tampered envelope');
+    }
+    const pt = new Uint8Array(ct.length);
+    const counter = j0.slice();
+    for (let off = 0; off < ct.length; off += 16) {
+      inc32(counter);
+      const ks = aesEncryptBlock(counter, rk);
+      for (let i = 0; i < 16 && off + i < ct.length; i++) pt[off + i] = ct[off + i] ^ ks[i];
+    }
+    return pt;
+  }
+
+  // --- SQKE envelope -------------------------------------------------------
+
+  const SQKE_MAGIC = new Uint8Array([0x53, 0x51, 0x4b, 0x45]); // "SQKE"
+  const SQKE_VERSION = 0x01;
+  const SQKE_HEADER_LENGTH = 5;
+  const SQKE_NONCE_LENGTH = 12;
+
+  function openEnvelope(kek, envelope) {
+    if (envelope.length <= SQKE_HEADER_LENGTH + SQKE_NONCE_LENGTH + 16) {
+      throw new Error('envelope too short');
+    }
+    for (let i = 0; i < SQKE_MAGIC.length; i++) {
+      if (envelope[i] !== SQKE_MAGIC[i]) throw new Error('not a ShardQuorum envelope (bad magic)');
+    }
+    if (envelope[4] !== SQKE_VERSION) throw new Error('unsupported envelope version ' + envelope[4]);
+    const header = envelope.slice(0, SQKE_HEADER_LENGTH);
+    const nonce = envelope.slice(SQKE_HEADER_LENGTH, SQKE_HEADER_LENGTH + SQKE_NONCE_LENGTH);
+    const ct = envelope.slice(SQKE_HEADER_LENGTH + SQKE_NONCE_LENGTH);
+    return aesGcmDecrypt(kek, nonce, ct, header);
+  }
+
+  // --- high-level recovery -------------------------------------------------
+
+  // inputs: array of strings (shard ByteWords/UR, and optionally the envelope UR).
+  // Returns {mode, secret: Uint8Array, ambiguous?: true}.
+  function recover(inputs) {
+    const shares = [];
+    let envelope = null;
+    inputs.forEach(function (text) {
+      if (!text || !text.trim()) return;
+      const parsed = parseInput(text);
+      if (parsed.kind === 'envelope') {
+        if (envelope) throw new Error('more than one envelope provided');
+        envelope = parsed.bytes;
+      } else {
+        shares.push(parsed.bytes);
+      }
+    });
+    if (!shares.length) throw new Error('no shards provided');
+    const combined = combineShares(shares);
+    if (envelope) return { mode: 'kek', secret: openEnvelope(combined, envelope) };
+    if (combined.length === 32) return { mode: 'direct', secret: combined, ambiguous: true };
+    return { mode: 'direct', secret: combined };
+  }
+
+  const SQ = {
+    toHex: toHex, fromHex: fromHex, bytesEqual: bytesEqual,
+    crc32: crc32, decodeBytewords: decodeBytewords,
+    parseInput: parseInput, parseShareHeader: parseShareHeader,
+    interpolate: interpolate, shamirCombine: shamirCombine, combineShares: combineShares,
+    sha256: sha256, hmacSha256: hmacSha256,
+    aesEncryptBlock: aesEncryptBlock, aesKeyExpansion: aesKeyExpansion, aesGcmDecrypt: aesGcmDecrypt,
+    openEnvelope: openEnvelope, recover: recover,
+    wordList: function () { return WORDS.slice(); }
+  };
+
+  if (typeof module !== 'undefined' && module.exports) module.exports = SQ;
+  else root.ShardQuorumCore = SQ;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
+<script>
+/*
+ * ShardQuorum recovery UI. Wires the DOM to ShardQuorumCore. No network.
+ */
+(function () {
+  'use strict';
+  var SQ = window.ShardQuorumCore;
+  function $(id) { return document.getElementById(id); }
+  function show(el, text, cls) { el.textContent = text; el.className = 'out' + (cls ? ' ' + cls : ''); }
+
+  function tryUtf8(bytes) {
+    try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes); }
+    catch (e) { return null; }
+  }
+
+  function shardLines(text) {
+    return text.split(/\r?\n/).map(function (s) { return s.trim(); }).filter(function (s) { return s.length; });
+  }
+
+  function onRecover() {
+    var out = $('output');
+    try {
+      var inputs = shardLines($('shards').value);
+      var env = $('envelope').value.trim();
+      if (env) inputs.push(env);
+      var res = SQ.recover(inputs);
+      var hex = SQ.toHex(res.secret);
+      var text = tryUtf8(res.secret);
+      var lines = ['Recovered (' + res.mode + ' mode):', ''];
+      if (text !== null) lines.push('Text:  ' + text);
+      lines.push('Hex:   ' + hex);
+      if (res.ambiguous) {
+        lines.push('');
+        lines.push('Note: this 32-byte result may be an encrypted secret’s key rather ' +
+          'than the secret itself. If you created it with a recovery envelope, add that ' +
+          'envelope above and recover again.');
+      }
+      show(out, lines.join('\n'), 'ok');
+    } catch (e) {
+      show(out, 'Recovery failed: ' + e.message, 'err');
+    }
+  }
+
+  function onWipe() {
+    $('shards').value = '';
+    $('envelope').value = '';
+    show($('output'), '', '');
+  }
+
+  function runSelfTest() {
+    var el = $('selftest-out');
+    try {
+      var vectors = JSON.parse($('sq-vectors').textContent);
+      var pass = 0, fail = 0, msgs = [];
+      vectors.vectors.forEach(function (vec) {
+        try {
+          var inputs = vec.shares.slice(0, vec.threshold).map(function (s) { return s.ur; });
+          if (vec.mode === 'kek') inputs.push(vec.envelope.ur);
+          var res = SQ.recover(inputs);
+          if (SQ.toHex(res.secret) === vec.secretHex) pass++;
+          else { fail++; msgs.push('FAIL ' + vec.name); }
+        } catch (e) { fail++; msgs.push('FAIL ' + vec.name + ': ' + e.message); }
+      });
+      var ok = fail === 0;
+      show(el, (ok ? 'PASS' : 'FAIL') + ': ' + pass + ' built-in vectors recovered, ' + fail +
+        ' failed.' + (msgs.length ? '\n' + msgs.join('\n') : ''), ok ? 'ok' : 'err');
+    } catch (e) {
+      show(el, 'Self-test error: ' + e.message, 'err');
+    }
+  }
+
+  function updateNetworkBanner() {
+    var b = $('net-banner');
+    if (navigator.onLine) {
+      b.textContent = 'This device appears to be ONLINE. For a real recovery, disconnect from ' +
+        'all networks first. This tool never sends data anywhere, but an offline device is safest.';
+      b.className = 'banner warn';
+    } else {
+      b.textContent = 'Offline. Good. This tool runs entirely on this device and sends nothing.';
+      b.className = 'banner ok';
+    }
+  }
+
+  $('recover-btn').addEventListener('click', onRecover);
+  $('wipe-btn').addEventListener('click', onWipe);
+  $('selftest-btn').addEventListener('click', runSelfTest);
+  window.addEventListener('online', updateNetworkBanner);
+  window.addEventListener('offline', updateNetworkBanner);
+
+  updateNetworkBanner();
+  runSelfTest(); // prove the tool to the user on load
+})();
+
+</script>
+</body>
+</html>
