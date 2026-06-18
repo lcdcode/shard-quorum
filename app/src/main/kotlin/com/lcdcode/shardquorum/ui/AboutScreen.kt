@@ -51,6 +51,7 @@ fun AboutScreen(onExit: () -> Unit) {
             HorizontalDivider()
 
             Section(R.string.about_safety_heading, R.string.about_safety_body)
+            Section(R.string.about_interop_heading, R.string.about_interop_body)
 
             OutlinedButton(
                 onClick = onExit,

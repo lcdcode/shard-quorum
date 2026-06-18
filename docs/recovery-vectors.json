@@ -1,0 +1,279 @@
+{
+  "specVersion": 1,
+  "sqkeEnvelopeVersion": 1,
+  "note": "Deterministic, reproducible recovery vectors for ShardQuorum. Any 'threshold' of a vector's shares reconstruct it. In kek mode the envelope is also required. An implementation is correct iff it reproduces every value here.",
+  "vectors": [
+    {
+      "name": "direct-2of3-16byte",
+      "mode": "direct",
+      "threshold": 2,
+      "shareCount": 3,
+      "secretHex": "00112233445566778899aabbccddeeff",
+      "shares": [
+        {
+          "memberIndex": 0,
+          "serializedHex": "88ef0001001cd4e5c0dae7fdb7b107446b33d501d0",
+          "header": {
+            "identifier": 35055,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 2,
+            "memberIndex": 0
+          },
+          "ur": "ur:sskr/golowsaeadaecetyvwrttnvdzcrlpaatfyjeeotladtizmcwmyhn",
+          "standardBytewords": "tuna next keep gyro logo webs able acid able code tiny view rust twin void zinc real puma aunt foxy jade echo toil acid taxi wasp vial down numb"
+        },
+        {
+          "memberIndex": 1,
+          "serializedHex": "88ef000101577b72512b2b60743bf682733235dbc9",
+          "header": {
+            "identifier": 35055,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 2,
+            "memberIndex": 1
+          },
+          "ur": "ur:sskr/golowsaeadadhgkgjpgydndnhnjyfrynlfjkeyecuysomymhdwst",
+          "standardBytewords": "tuna next keep gyro logo webs able acid acid hang king jump gray down down horn jury fair yawn leaf junk easy epic ugly solo news iris logo aunt"
+        },
+        {
+          "memberIndex": 2,
+          "serializedHex": "88ef0001028a91d0f92364dc2abefed35b310eaee2",
+          "header": {
+            "identifier": 35055,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 2,
+            "memberIndex": 2
+          },
+          "ur": "ur:sskr/golowsaeadaolemetiytcnieuodrrnzetehpehbaplvokgwzylkn",
+          "standardBytewords": "tuna next keep gyro logo webs able acid also love maze taxi yurt cyan idle undo door ruin zone time help each beta pool veto iris back guru road"
+        }
+      ]
+    },
+    {
+      "name": "direct-3of5-32byte",
+      "mode": "direct",
+      "threshold": 3,
+      "shareCount": 5,
+      "secretHex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "shares": [
+        {
+          "memberIndex": 0,
+          "serializedHex": "26c2000200030f0ec0d9409347d0534277d38f43ec5963af57c802947a4d301e07406ac590",
+          "header": {
+            "identifier": 9922,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 3,
+            "memberIndex": 0
+          },
+          "ur": "ur:sskr/hddadssaaeaoaeaxbsbarttafzmufltigufwkttemyfxwphkiapehgspaomwkngtdyckatfzimskmhtpwfherp",
+          "standardBytewords": "tuna next keep hard data days saga able also able apex bias beta rust tuna fizz menu fuel taxi guru flew kept time many flux wasp hawk idea pose hang soap also meow kiln gift duty cook aunt fizz item silk math figs gear tiny legs"
+        },
+        {
+          "memberIndex": 1,
+          "serializedHex": "26c20002014e4d8244f9dbc8a99633e8c0aee7cdffde4c4e4519e5d06d3dd6fe5573ba065c",
+          "header": {
+            "identifier": 9922,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 3,
+            "memberIndex": 1
+          },
+          "ur": "ur:sskr/hddadssaaeaoadglgtlffyytuyspptmteovsrtplvdsnzmuegsglfecfvwtijnfstbzegojkrdamhhlykeaomu",
+          "standardBytewords": "tuna next keep hard data days saga able also acid girl gift leaf foxy yurt ugly soap part mint echo vows rust pool void swan zoom urge gems girl free chef view taxi join figs tomb zone gyro junk road atom high idle sets loud oval"
+        },
+        {
+          "memberIndex": 2,
+          "serializedHex": "26c2000202eadcd80576a3a8441694351173b9b48cdc1be4e937391ad356b44ea90ac03157",
+          "header": {
+            "identifier": 9922,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 3,
+            "memberIndex": 2
+          },
+          "ur": "ur:sskr/hddadssaaeaoaowduotpahkootpdfycmmwecbyjkrhqzlkuocwvewlemescytehfqzglptbkrtehhgnnioiedw",
+          "standardBytewords": "tuna next keep hard data days saga able also also wand undo trip arch keno omit paid foxy calm meow epic body junk rich quiz luck undo claw vibe wall exam eyes city time half quiz girl part back rust each hang king user webs chef"
+        },
+        {
+          "memberIndex": 3,
+          "serializedHex": "26c2000203a79e54815638f3aa50f49fa60ed13a9f5b3405fbe6de5ec42652aefb3910f29b",
+          "header": {
+            "identifier": 9922,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 3,
+            "memberIndex": 3
+          },
+          "ur": "ur:sskr/hddadssaaeaoaxosnnghlyhfetwfpkgdwkneolbattftnehpeeahzovauehyssdsgmplzoesbewzndstvsesas",
+          "standardBytewords": "tuna next keep hard data days saga able also apex owls noon gush lazy half exit wolf peck good work note oval beta tent fact note help edge arch zero visa urge holy sets days grim pool zero eyes blue whiz need cusp good purr fern"
+        },
+        {
+          "memberIndex": 4,
+          "serializedHex": "26c20002041df5c0240d88e77c74da4cf7fb565b2f3e0b476e2ee18b19ba74a4686461890e",
+          "header": {
+            "identifier": 9922,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 3,
+            "memberIndex": 4
+          },
+          "ur": "ur:sskr/hddadssaaeaoaacaykrtdkbtlovdkejytngsylzohfhpdlfmbdfljtdmvylucfrdjyoxisiehsldbarkckmoay",
+          "standardBytewords": "tuna next keep hard data days saga able also aqua cola yank rust dark belt logo void kite jury twin gems yell zero half help dull film bald fuel jolt drum very luau chef road jury onyx iris idle huts loud beta holy oval chef figs"
+        }
+      ]
+    },
+    {
+      "name": "kek-2of3-text",
+      "mode": "kek",
+      "threshold": 2,
+      "shareCount": 3,
+      "secretHex": "7661756c74206d6173746572206b6579",
+      "secretUtf8": "vault master key",
+      "combinedKekHex": "fa18d8c3471efcc184e5579610ac5c0e86f6debdc891b53fec86dcfc817436bc",
+      "envelope": {
+        "rawHex": "53514b45016e9b70f5decf54c34162e19e5c31963fa29673e43860e0ea888a12d5443aee93459cce2bd3c824e36b718c0c",
+        "ur": "ur:sq-env/hdehgugygrfeadjtndjoykuetkghsrfpidvynnhhehmtfhoemtjkveethnvtwdlolebgtlfyftwymufenstodntespdkvljejslkbnlpchctmu"
+      },
+      "shares": [
+        {
+          "memberIndex": 0,
+          "serializedHex": "8f8c000100efa5b7ade4723c7250bcb373152a567b720f08feb50710d20cef42b9cbcdb4f2",
+          "header": {
+            "identifier": 36748,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 2,
+            "memberIndex": 0
+          },
+          "ur": "ur:sskr/hddamylkaeadaewsonrlpmvejpfnjpgdrfqdjkbzdrhfkgjpbsayzereatbetdbnwsfwrhsbsnqzwzfnmdpepr",
+          "standardBytewords": "tuna next keep hard data many luck able acid able webs open real poem vibe jump fern jump good roof quad junk buzz door half king jump bias away zone race aunt blue tied barn webs flew rich stub swan quiz whiz tuna drop dark list"
+        },
+        {
+          "memberIndex": 1,
+          "serializedHex": "8f8c00010158ddefe9ef0effa238daad7179e08e20b746589b0e16533062ffb39452c50e1b",
+          "header": {
+            "identifier": 36748,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 2,
+            "memberIndex": 1
+          },
+          "ur": "ur:sskr/hddamylkaeadadhdutwswlwsbazmoeettnpmjskkvtmncxrlfghdndbacmgudyidzmqdmwgmskbacwkesoghlf",
+          "standardBytewords": "tuna next keep hard data many luck able acid acid hard unit webs wall webs beta zoom oboe exit twin poem jugs kick vast main crux real frog hard need beta calm guru duty iced zoom quad meow grim silk beta claw nail jugs user real"
+        },
+        {
+          "memberIndex": 2,
+          "serializedHex": "8f8c0001029a550725f28aa1c980708f77cda5fdcde39da834d825960dd0cfbbe3e2dddb3b",
+          "header": {
+            "identifier": 36748,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 2,
+            "memberIndex": 2
+          },
+          "ur": "ur:sskr/hddamylkaeadaonygoatdawzleoysolajomyktsnonzcsnvlntpdeetpdamtbttitkrkvlvoutuyfreycepkat",
+          "standardBytewords": "tuna next keep hard data many luck able acid also navy gyro aunt data whiz love obey solo lava judo many kept swan open zinc swan vial next paid edge trip data mint belt taxi task rock vial veto unit ugly fair toys onyx curl easy"
+        }
+      ]
+    },
+    {
+      "name": "kek-3of5-text",
+      "mode": "kek",
+      "threshold": 3,
+      "shareCount": 5,
+      "secretHex": "636f727265637420686f727365206261747465727920737461706c65",
+      "secretUtf8": "correct horse battery staple",
+      "combinedKekHex": "c9e25f1b10447959e5688c3e8552977f4359528bc63713908740d2c91af6faba",
+      "envelope": {
+        "rawHex": "53514b4501bf762793c3578cd238d152a4683d946e0f280d915ea1c103917c6eede9aff79f5aa495d501462308a6faa636923ccf8eb5a25bcf0f23b4f7",
+        "ur": "ur:sq-env/hdfsgugygrfeadrskodimusrhglktdetttgmoxisfsmwjtbsdebtmehyoyseaxmekejtwewlpeylnehtoxmdtladfgcnayolzsolenmofntkmnreoehptkbscnqzylgtbdhdat"
+      },
+      "shares": [
+        {
+          "memberIndex": 0,
+          "serializedHex": "1a03000200743375038183367bb047adb3090ee37cfeefe07af7fbb5d9964d4bfd5da67590",
+          "header": {
+            "identifier": 6659,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 3,
+            "memberIndex": 0
+          },
+          "ur": "ur:sskr/hddacyaxaeaoaejyeokpaxlylsenkgpfflpmqdasbavlkezewsvtknylzoretamtgtgrzchlolkpmhmdkicftk",
+          "standardBytewords": "tuna next keep hard data city apex able also able jury echo keep apex lazy legs even king puff fuel poem quad axis beta vial kite zone webs vast kiln yell zero race tuna mint gift gear zinc hill oval keep math judo silk memo zaps"
+        },
+        {
+          "memberIndex": 1,
+          "serializedHex": "1a030002013224038742813b65f097f96ed2173b6633d0b64b7d118786289a124f8833a25b",
+          "header": {
+            "identifier": 6659,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 3,
+            "memberIndex": 1
+          },
+          "ur": "ur:sskr/hddacyaxaeaoadeydkaxltfwlyfrihwtmsytjttdchfriyeotirpgrkibyltlndenybggwloeooehptnwlwzbw",
+          "standardBytewords": "tuna next keep hard data city apex able also acid easy dark apex list flew lazy fair inch what miss yurt jolt tied cash fair inky echo taxi ramp gear kiwi body list lion dice navy brag glow logo echo oboe help fish gray kick days"
+        },
+        {
+          "memberIndex": 2,
+          "serializedHex": "1a030002022ab225c7e7d349e7fe3128696993b99a0db562170a8051b4919fde6d38edaf57",
+          "header": {
+            "identifier": 6659,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 3,
+            "memberIndex": 2
+          },
+          "ur": "ur:sskr/hddacyaxaeaoaodrprdastvdtegavdzeehdeininmurhnybtreidchbklagyqzmeneuejnetwepehgoxwerfge",
+          "standardBytewords": "tuna next keep hard data city apex able also also door purr data slot void time gala void zone each dice iron iron menu rich navy belt race iced cash back lava gray quiz maze note urge join exit wave pose hang flap gyro exam lamb"
+        },
+        {
+          "memberIndex": 3,
+          "serializedHex": "1a030002036ca5534324d144f9bee17cb4b28a6180c08a3426806a63eb2f4887dfed78789c",
+          "header": {
+            "identifier": 6659,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 3,
+            "memberIndex": 3
+          },
+          "ur": "ur:sskr/hddacyaxaeaoaxjzongufxdkttfyytrnvykeqzprlehslartleeedslaimiawmdlfdlturweksksnswmkkhgmt",
+          "standardBytewords": "tuna next keep hard data city apex able also apex jazz open guru flux dark tent foxy yurt ruin very kite quiz purr love huts lava rust love edge days lava item idea warm dull fund list user wave keys keys news beta safe undo omit"
+        },
+        {
+          "memberIndex": 4,
+          "serializedHex": "1a03000204ada013e18c6847ee39b208ebd0a5beced0cb479cf3eb50620375e657eac37d36",
+          "header": {
+            "identifier": 6659,
+            "groupThreshold": 1,
+            "groupCount": 1,
+            "groupIndex": 0,
+            "memberThreshold": 3,
+            "memberIndex": 4
+          },
+          "ur": "ur:sskr/hddacyaxaeaoaapmnbbwvylkisflwyespraywmtionrntotisbflnswfwmgdidaxkpvahgwdsrkienmogegrhn",
+          "standardBytewords": "tuna next keep hard data city apex able also aqua poem numb brew very luck iris fuel waxy eyes purr away warm taxi open ruin taco taxi stub fuel news wolf warm good iced apex keep visa hang wand scar kiwi even kept whiz rust gyro"
+        }
+      ]
+    }
+  ]
+}
