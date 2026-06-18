@@ -8,12 +8,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.lcdcode.shardquorum.ui.AboutScreen
 import com.lcdcode.shardquorum.ui.HomeScreen
 import com.lcdcode.shardquorum.ui.create.CreateSecretScreen
 import com.lcdcode.shardquorum.ui.recover.RecoverScreen
 import com.lcdcode.shardquorum.ui.theme.ShardQuorumTheme
 
-private enum class Screen { HOME, CREATE, RECOVER }
+private enum class Screen { HOME, CREATE, RECOVER, ABOUT }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -31,9 +32,11 @@ class MainActivity : ComponentActivity() {
                     Screen.HOME -> HomeScreen(
                         onCreate = { screen = Screen.CREATE },
                         onRecover = { screen = Screen.RECOVER },
+                        onAbout = { screen = Screen.ABOUT },
                     )
                     Screen.CREATE -> CreateSecretScreen(onExit = { screen = Screen.HOME })
                     Screen.RECOVER -> RecoverScreen(onExit = { screen = Screen.HOME })
+                    Screen.ABOUT -> AboutScreen(onExit = { screen = Screen.HOME })
                 }
             }
         }

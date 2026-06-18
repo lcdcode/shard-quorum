@@ -4,6 +4,30 @@
     <string name="home_tagline">Split a secret into shards. A quorum reconstructs it.</string>
     <string name="home_create">Create a new secret</string>
     <string name="home_recover">Recover from shards</string>
+    <string name="home_about">How it works</string>
+
+    <string name="about_title">How ShardQuorum works</string>
+    <string name="about_intro">ShardQuorum protects a single high-value secret - a password-manager passphrase, a crypto wallet seed, a disk-encryption key - by splitting it into pieces called shards. You decide how many shards exist and how many are needed to rebuild the secret. The app works entirely offline and never touches the internet.</string>
+
+    <string name="about_sss_heading">Shamir\'s Secret Sharing</string>
+    <string name="about_sss_body">The idea behind ShardQuorum is Shamir\'s Secret Sharing. It splits your secret into a number of shards (N) and sets a quorum (K). Any K shards rebuild the secret exactly. Any K minus 1 or fewer reveal nothing at all - not part of the secret, not even a hint. This is a mathematical guarantee, not just a hard puzzle.\n\nA common choice is 3-of-5: five shards exist, any three rebuild the secret. You could lose two shards, or have two fall into the wrong hands, and your secret stays both recoverable and safe.</string>
+
+    <string name="about_sskr_heading">How shards are stored</string>
+    <string name="about_sskr_body">Each shard is encoded using SSKR (Sharded Secret Key Reconstruction), an open standard from Blockchain Commons. A shard can be kept two ways:\n\n• As a QR code, for quick scanning.\n• As a short list of plain English words, easy to write on paper by hand.\n\nBoth carry the same information. The words include a built-in checksum, so a typo is caught before it can cause trouble.</string>
+
+    <string name="about_envelope_heading">The recovery envelope</string>
+    <string name="about_envelope_body">By default your secret travels with the shards as an encrypted recovery envelope. Keep a copy of the envelope alongside every shard. The shards unlock the envelope; on their own, neither the shards nor the envelope reveal anything. (If you pick Direct mode - for example for a wallet seed - there is no envelope, and the shards are the secret itself.)</string>
+
+    <string name="about_use_heading">Using the app</string>
+    <string name="about_use_create">Create. Tap “Create a new secret”, give it a vague name, type or paste your secret, and choose your quorum (K) and number of shards (N). The app generates the shards and shows them one at a time.</string>
+    <string name="about_use_distribute">Distribute. Save or share each shard separately, and store them in different places with different people - a fireproof box at home, a trusted relative, a bank safe-deposit box. No single place should hold enough shards to reach the quorum.</string>
+    <string name="about_use_verify">Verify. Before you rely on them, the app asks you to re-enter a quorum of shards to prove they really do rebuild the secret. Do not skip this step.</string>
+    <string name="about_use_recover">Recover. When you need the secret back, tap “Recover from shards” and add a quorum of them by scanning QR codes, typing the words, or importing a saved file.</string>
+
+    <string name="about_safety_heading">Staying safe</string>
+    <string name="about_safety_body">Send each shard a different way. If one app, account, or person ends up holding enough shards, they can rebuild your secret on their own.\n\nWhen the secret is split or rebuilt, the phone briefly sees the whole thing. ShardQuorum protects your secret while it is stored and distributed, not while it is in use - so do this on a device you trust. The screen also blocks screenshots while shards are shown.</string>
+
+    <string name="about_back">Back</string>
 
     <string name="recover_title">Recover secret</string>
     <string name="recover_progress_empty">Add your first shard to begin.</string>
