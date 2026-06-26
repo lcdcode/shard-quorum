@@ -1,13 +1,17 @@
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
+import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
+import org.gradle.api.tasks.Optional
+import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import org.gradle.kotlin.dsl.register
 import org.w3c.dom.Element
+import java.io.File
 import javax.xml.parsers.DocumentBuilderFactory
 
 plugins {
@@ -107,6 +111,55 @@ val allowedPermissions = listOf(
     "android.permission.CAMERA",
 )
 
+// Stages the recovery-kit artifacts into a generated assets dir so they are
+// bundled in the APK under assets/recovery-kit/. The sources are the repo's
+// single canonical copies (the same files the release bundle ships), so the
+// in-app kit can never drift from them. Typed + CC-friendly, like the guard below.
+abstract class StageRecoveryKitAssetsTask : DefaultTask() {
+    @get:Optional
+    @get:InputFile
+    abstract val recoverHtml: RegularFileProperty
+
+    @get:Optional
+    @get:InputFile
+    abstract val specMarkdown: RegularFileProperty
+
+    @get:Optional
+    @get:InputFile
+    abstract val vectorsJson: RegularFileProperty
+
+    @get:Optional
+    @get:InputFile
+    abstract val readmeText: RegularFileProperty
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun stage() {
+        val kitDir = outputDir.get().asFile.resolve("recovery-kit")
+        kitDir.deleteRecursively()
+        kitDir.mkdirs()
+        // entry-name-in-assets -> source. README is renamed to its kit name.
+        copyInto(kitDir, "ShardQuorum-recover.html", recoverHtml, hint = "run `node web/recover/build.js`")
+        copyInto(kitDir, "RECOVERY-SPEC.md", specMarkdown)
+        copyInto(kitDir, "recovery-vectors.json", vectorsJson)
+        copyInto(kitDir, "README.txt", readmeText)
+    }
+
+    private fun copyInto(dir: File, name: String, source: RegularFileProperty, hint: String? = null) {
+        val src = source.orNull?.asFile
+        if (src == null || !src.exists()) {
+            val suffix = hint?.let { " ($it)" } ?: ""
+            throw GradleException(
+                "Recovery kit source missing for '$name': ${src?.path ?: "<unset>"}$suffix. " +
+                    "The app bundles the recovery artifacts; they must be present to build.",
+            )
+        }
+        src.copyTo(File(dir, name), overwrite = true)
+    }
+}
+
 // Typed task class so Gradle's configuration cache can serialize the task graph.
 // Inline `doLast {}` lambdas capture script-scope references that CC can't handle.
 abstract class VerifyNoNetworkTask : DefaultTask() {
@@ -150,8 +203,23 @@ abstract class VerifyNoNetworkTask : DefaultTask() {
     }
 }
 
+// Single staging task; every variant's merged assets consume its output.
+val stageRecoveryKitAssets = tasks.register<StageRecoveryKitAssetsTask>("stageRecoveryKitAssets") {
+    recoverHtml.set(rootProject.layout.projectDirectory.file("ShardQuorum-recover.html"))
+    specMarkdown.set(rootProject.layout.projectDirectory.file("docs/RECOVERY-SPEC.md"))
+    vectorsJson.set(rootProject.layout.projectDirectory.file("docs/recovery-vectors.json"))
+    readmeText.set(rootProject.layout.projectDirectory.file("docs/recovery-kit-README.txt"))
+    outputDir.set(layout.buildDirectory.dir("generated/recoveryKitAssets"))
+}
+
 androidComponents {
     onVariants { variant ->
+        // Bundle the staged recovery-kit artifacts; wires merge<Variant>Assets to depend on staging.
+        variant.sources.assets?.addGeneratedSourceDirectory(
+            stageRecoveryKitAssets,
+            StageRecoveryKitAssetsTask::outputDir,
+        )
+
         val capitalized = variant.name.replaceFirstChar { it.uppercase() }
         val verifyTask = tasks.register<VerifyNoNetworkTask>("verifyNoNetwork$capitalized") {
             mergedManifest.set(

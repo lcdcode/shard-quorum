@@ -43,6 +43,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lcdcode.shardquorum.R
+import com.lcdcode.shardquorum.export.RecoveryKit
 import com.lcdcode.shardquorum.qr.QrPng
 import com.lcdcode.shardquorum.qr.ZxingQrDecoder
 import com.lcdcode.shardquorum.ui.QrImage
@@ -246,11 +247,21 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
     // staged just before launching, then clear it.
     var pendingPng by remember { mutableStateOf<ByteArray?>(null) }
     var pendingText by remember { mutableStateOf<String?>(null) }
+    var pendingZip by remember { mutableStateOf<ByteArray?>(null) }
     val savePngLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("image/png"),
     ) { uri ->
         val bytes = pendingPng
         pendingPng = null
+        if (uri != null && bytes != null) {
+            context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
+        }
+    }
+    val saveZipLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip"),
+    ) { uri ->
+        val bytes = pendingZip
+        pendingZip = null
         if (uri != null && bytes != null) {
             context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
         }
@@ -286,6 +297,17 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
         return QrPng.encodeSheet(current.secretName, sections)
     }
 
+    // The recovery kit: this recipient's shard (QR sheet + words) bundled with
+    // the offline recovery tool, spec, vectors and README shipped in the APK, so
+    // each recipient receives a complete, app-independent way to rebuild later.
+    fun buildKit(): ByteArray = RecoveryKit.buildKit(
+        assets = context.assets,
+        shardPng = buildShardPng(),
+        shardText = CreateSecretViewModel.shareText(current),
+        index = current.index,
+        count = current.count,
+    )
+
     fun chooserFor(send: Intent) {
         context.startActivity(
             Intent.createChooser(send, context.getString(R.string.shard_share_chooser)),
@@ -319,6 +341,23 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
         )
     }
 
+    fun shareKit() {
+        // Same transient-staging discipline as shareQrImage: the kit carries the
+        // shard (key material), so it is purged on return to foreground and on exit.
+        sharedDir.mkdirs()
+        purgeSharedDir()
+        val file = File(sharedDir, "$baseName-kit.zip").apply { writeBytes(buildKit()) }
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        pendingShareCleanup = true
+        chooserFor(
+            Intent(Intent.ACTION_SEND).apply {
+                type = "application/zip"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            },
+        )
+    }
+
     BackHandler { showConfirm = true }
 
     if (showConfirm) {
@@ -344,6 +383,10 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
 
     if (showShareOptions) {
         ShareOptionsDialog(
+            onShareKit = {
+                showShareOptions = false
+                shareKit()
+            },
             onShareQr = {
                 showShareOptions = false
                 shareQrImage()
@@ -358,6 +401,11 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
 
     if (showSaveOptions) {
         SaveOptionsDialog(
+            onSaveKit = {
+                showSaveOptions = false
+                pendingZip = buildKit()
+                saveZipLauncher.launch("$baseName-kit.zip")
+            },
             onSaveQr = {
                 showSaveOptions = false
                 pendingPng = buildShardPng()
@@ -448,6 +496,7 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
 
 @Composable
 private fun SaveOptionsDialog(
+    onSaveKit: () -> Unit,
     onSaveQr: () -> Unit,
     onSaveWords: () -> Unit,
     onDismiss: () -> Unit,
@@ -457,6 +506,14 @@ private fun SaveOptionsDialog(
         title = { Text(stringResource(R.string.shard_save_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onSaveKit, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.shard_save_kit))
+                }
+                Text(
+                    text = stringResource(R.string.shard_save_kit_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                HorizontalDivider()
                 OutlinedButton(onClick = onSaveQr, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.shard_save_qr))
                 }
@@ -476,6 +533,7 @@ private fun SaveOptionsDialog(
 
 @Composable
 private fun ShareOptionsDialog(
+    onShareKit: () -> Unit,
     onShareQr: () -> Unit,
     onShareWords: () -> Unit,
     onDismiss: () -> Unit,
@@ -485,6 +543,14 @@ private fun ShareOptionsDialog(
         title = { Text(stringResource(R.string.shard_share_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onShareKit, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.shard_share_kit))
+                }
+                Text(
+                    text = stringResource(R.string.shard_share_kit_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                HorizontalDivider()
                 OutlinedButton(onClick = onShareQr, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.shard_share_qr))
                 }
