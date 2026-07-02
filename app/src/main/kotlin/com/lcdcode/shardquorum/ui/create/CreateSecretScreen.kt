@@ -1,6 +1,7 @@
 package com.lcdcode.shardquorum.ui.create
 
 import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -28,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -49,6 +51,9 @@ import com.lcdcode.shardquorum.qr.ZxingQrDecoder
 import com.lcdcode.shardquorum.ui.QrImage
 import com.lcdcode.shardquorum.ui.components.ShardInputPanel
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun CreateSecretScreen(onExit: () -> Unit, viewModel: CreateSecretViewModel = viewModel()) {
@@ -221,6 +226,9 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
     val current = shards[index]
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val scope = rememberCoroutineScope()
+    // Guards the async share/save builds against a double-tap launching two.
+    var exporting by remember { mutableStateOf(false) }
 
     // Staged shard PNGs (for the share intent) hold key material, so they must
     // not linger on disk. We purge them once we regain the foreground - by then
@@ -248,34 +256,33 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
     var pendingPng by remember { mutableStateOf<ByteArray?>(null) }
     var pendingText by remember { mutableStateOf<String?>(null) }
     var pendingZip by remember { mutableStateOf<ByteArray?>(null) }
+    // Writes go through SAF, whose provider may be network-backed (a cloud
+    // documents app), so every write runs on the IO dispatcher.
+    fun writeToUri(uri: Uri, bytes: ByteArray) {
+        scope.launch(Dispatchers.IO) {
+            context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
+        }
+    }
     val savePngLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("image/png"),
     ) { uri ->
         val bytes = pendingPng
         pendingPng = null
-        if (uri != null && bytes != null) {
-            context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
-        }
+        if (uri != null && bytes != null) writeToUri(uri, bytes)
     }
     val saveZipLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/zip"),
     ) { uri ->
         val bytes = pendingZip
         pendingZip = null
-        if (uri != null && bytes != null) {
-            context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
-        }
+        if (uri != null && bytes != null) writeToUri(uri, bytes)
     }
     val saveTextLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/plain"),
     ) { uri ->
         val text = pendingText
         pendingText = null
-        if (uri != null && text != null) {
-            context.contentResolver.openOutputStream(uri)?.use {
-                it.write(text.toByteArray(Charsets.UTF_8))
-            }
-        }
+        if (uri != null && text != null) writeToUri(uri, text.toByteArray(Charsets.UTF_8))
     }
 
     val baseName = "shardquorum-shard-${current.index}-of-${current.count}"
@@ -323,39 +330,60 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
         )
     }
 
-    fun shareQrImage() {
-        // Stage into cache/shared, keeping only the current shard. The file is
-        // purged when we return to the foreground and when this screen is left
-        // (see the DisposableEffect above), so it does not outlive the share.
-        sharedDir.mkdirs()
-        purgeSharedDir()
-        val file = File(sharedDir, "$baseName.png").apply { writeBytes(buildShardPng()) }
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        pendingShareCleanup = true
-        chooserFor(
-            Intent(Intent.ACTION_SEND).apply {
-                type = "image/png"
-                putExtra(Intent.EXTRA_STREAM, uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            },
-        )
+    // Rendering the QR sheet (bitmap draw + PNG compress) takes long enough to
+    // drop frames, so share/save payloads are built on Default and staged on IO
+    // before the chooser/picker is launched from the main thread.
+    fun shareStaged(fileName: String, mimeType: String, buildPayload: () -> ByteArray) {
+        if (exporting) return
+        exporting = true
+        scope.launch {
+            try {
+                val payload = withContext(Dispatchers.Default) { buildPayload() }
+                // Stage into cache/shared, keeping only the current shard. The
+                // file is purged when we return to the foreground and when this
+                // screen is left (see the DisposableEffect above), so it does
+                // not outlive the share.
+                val uri = withContext(Dispatchers.IO) {
+                    sharedDir.mkdirs()
+                    purgeSharedDir()
+                    val file = File(sharedDir, fileName).apply { writeBytes(payload) }
+                    FileProvider.getUriForFile(
+                        context, "${context.packageName}.fileprovider", file,
+                    )
+                }
+                pendingShareCleanup = true
+                chooserFor(
+                    Intent(Intent.ACTION_SEND).apply {
+                        type = mimeType
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    },
+                )
+            } finally {
+                exporting = false
+            }
+        }
     }
 
-    fun shareKit() {
-        // Same transient-staging discipline as shareQrImage: the kit carries the
-        // shard (key material), so it is purged on return to foreground and on exit.
-        sharedDir.mkdirs()
-        purgeSharedDir()
-        val file = File(sharedDir, "$baseName-kit.zip").apply { writeBytes(buildKit()) }
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        pendingShareCleanup = true
-        chooserFor(
-            Intent(Intent.ACTION_SEND).apply {
-                type = "application/zip"
-                putExtra(Intent.EXTRA_STREAM, uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            },
-        )
+    fun shareQrImage() = shareStaged("$baseName.png", "image/png", ::buildShardPng)
+
+    // The kit carries the shard (key material), so it follows the same
+    // transient-staging discipline as shareQrImage.
+    fun shareKit() = shareStaged("$baseName-kit.zip", "application/zip", ::buildKit)
+
+    // Builds the payload off the main thread, then hands the SAF picker its
+    // result via the pending* slot the launcher callback consumes.
+    fun saveStaged(build: () -> ByteArray, stage: (ByteArray) -> Unit, launchPicker: () -> Unit) {
+        if (exporting) return
+        exporting = true
+        scope.launch {
+            try {
+                stage(withContext(Dispatchers.Default) { build() })
+                launchPicker()
+            } finally {
+                exporting = false
+            }
+        }
     }
 
     BackHandler { showConfirm = true }
@@ -403,13 +431,15 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
         SaveOptionsDialog(
             onSaveKit = {
                 showSaveOptions = false
-                pendingZip = buildKit()
-                saveZipLauncher.launch("$baseName-kit.zip")
+                saveStaged(::buildKit, { pendingZip = it }) {
+                    saveZipLauncher.launch("$baseName-kit.zip")
+                }
             },
             onSaveQr = {
                 showSaveOptions = false
-                pendingPng = buildShardPng()
-                savePngLauncher.launch("$baseName.png")
+                saveStaged(::buildShardPng, { pendingPng = it }) {
+                    savePngLauncher.launch("$baseName.png")
+                }
             },
             onSaveWords = {
                 showSaveOptions = false
@@ -675,6 +705,7 @@ private fun VerifyStep(
             ShardInputPanel(
                 onText = { viewModel.addVerifyText(it) },
                 onImageBytes = { viewModel.addVerifyImage(it, decoder) },
+                busy = viewModel.isDecoding,
             )
             viewModel.verifyError?.let {
                 Text(

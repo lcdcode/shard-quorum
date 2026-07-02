@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.lcdcode.shardquorum.qr.QrDecodeException
 import com.lcdcode.shardquorum.qr.QrDecoder
 import com.lcdcode.shardquorum.sskr.EnvelopeException
@@ -11,6 +12,10 @@ import com.lcdcode.shardquorum.sskr.KekEnvelope
 import com.lcdcode.shardquorum.sskr.ShareImport
 import com.lcdcode.shardquorum.sskr.ShareReader
 import com.lcdcode.shardquorum.sskr.Sskr
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class RecoverError {
     UNRECOGNIZED_INPUT,
@@ -42,7 +47,9 @@ data class CollectedShard(val memberIndex: Int)
  * shares are treated as the KEK and used to decrypt it; otherwise the combined
  * value is presented directly (direct-shard mode) as hex.
  */
-class RecoverViewModel : ViewModel() {
+class RecoverViewModel(
+    private val decodeDispatcher: CoroutineDispatcher = Dispatchers.Default,
+) : ViewModel() {
     var shares by mutableStateOf<List<ShareImport.Share>>(emptyList())
         private set
     var envelope by mutableStateOf<ByteArray?>(null)
@@ -50,6 +57,8 @@ class RecoverViewModel : ViewModel() {
     var error by mutableStateOf<RecoverError?>(null)
         private set
     var result by mutableStateOf<RecoveredSecret?>(null)
+        private set
+    var isDecoding by mutableStateOf(false)
         private set
 
     /** Member threshold (K) declared by the collected shares, once any exist. */
@@ -127,15 +136,26 @@ class RecoverViewModel : ViewModel() {
         return added > 0
     }
 
-    /** Decodes every QR in a picked image, then files them all. */
-    fun addFromImage(imageBytes: ByteArray, decoder: QrDecoder): Boolean {
-        val texts = try {
-            decoder.decode(imageBytes)
-        } catch (e: QrDecodeException) {
-            error = RecoverError.IMAGE_DECODE_FAILED
-            return false
+    /**
+     * Decodes every QR in a picked image, then files them all. Decoding a
+     * multi-megapixel photo can take seconds, so it runs on [decodeDispatcher]
+     * with [isDecoding] set for the duration; results land via [shares]/[error]
+     * when the launched work completes. No-op while a decode is in flight.
+     */
+    fun addFromImage(imageBytes: ByteArray, decoder: QrDecoder) {
+        if (isDecoding) return
+        isDecoding = true
+        error = null
+        viewModelScope.launch {
+            try {
+                val texts = withContext(decodeDispatcher) { decoder.decode(imageBytes) }
+                addBundle(texts.joinToString("\n"))
+            } catch (e: QrDecodeException) {
+                error = RecoverError.IMAGE_DECODE_FAILED
+            } finally {
+                isDecoding = false
+            }
         }
-        return addBundle(texts.joinToString("\n"))
     }
 
     private enum class FileOutcome { ADDED, ENVELOPE_SET, DUPLICATE, DIFFERENT_SPLIT }

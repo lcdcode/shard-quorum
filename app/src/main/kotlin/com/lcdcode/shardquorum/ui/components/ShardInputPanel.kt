@@ -14,8 +14,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -26,8 +28,10 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
@@ -41,6 +45,9 @@ import com.lcdcode.shardquorum.qr.QrFrameAnalyzer
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.util.concurrent.Executors
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private enum class InputMethod { WORDS, SCAN, FILE }
 
@@ -73,12 +80,15 @@ private fun readCapped(input: InputStream, cap: Int): ByteArray? {
  *   file. Returns true if accepted (the word field clears on success).
  * @param onImageBytes raw bytes of a picked image file; the host decodes it
  *   (it owns the [com.lcdcode.shardquorum.qr.QrDecoder]).
+ * @param busy true while the host is still decoding a previously delivered
+ *   image; the file picker is disabled and a spinner shown until it clears.
  */
 @Composable
 fun ShardInputPanel(
     onText: (String) -> Boolean,
     onImageBytes: (ByteArray) -> Unit,
     modifier: Modifier = Modifier,
+    busy: Boolean = false,
 ) {
     var method by rememberSaveable { mutableStateOf(InputMethod.WORDS) }
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -86,7 +96,7 @@ fun ShardInputPanel(
         when (method) {
             InputMethod.WORDS -> WordEntryPanel(onText)
             InputMethod.SCAN -> CameraScannerPanel(onText)
-            InputMethod.FILE -> FileImportPanel(onText, onImageBytes)
+            InputMethod.FILE -> FileImportPanel(onText, onImageBytes, busy)
         }
     }
 }
@@ -258,18 +268,39 @@ private fun CameraPreview(onDecoded: (String) -> Unit) {
 }
 
 @Composable
-private fun FileImportPanel(onText: (String) -> Boolean, onImageBytes: (ByteArray) -> Unit) {
+private fun FileImportPanel(
+    onText: (String) -> Boolean,
+    onImageBytes: (ByteArray) -> Unit,
+    busy: Boolean,
+) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    // Covers the content read; the host's busy flag covers the QR decode that
+    // follows, so the spinner runs continuously across both.
+    var reading by remember { mutableStateOf(false) }
+    val working = busy || reading
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent(),
     ) { uri ->
         if (uri != null) {
-            val isImage = context.contentResolver.getType(uri)?.startsWith("image/") == true
-            val cap = if (isImage) MAX_IMAGE_BYTES else MAX_TEXT_BYTES
-            // Over-cap picks read as null and are ignored rather than processed.
-            val bytes = context.contentResolver.openInputStream(uri)?.use { readCapped(it, cap) }
-            if (bytes != null) {
-                if (isImage) onImageBytes(bytes) else onText(bytes.toString(Charsets.UTF_8))
+            reading = true
+            scope.launch {
+                try {
+                    // Content providers may be network-backed (cloud SAF
+                    // documents), so even the read stays off the main thread.
+                    val isImage =
+                        context.contentResolver.getType(uri)?.startsWith("image/") == true
+                    val cap = if (isImage) MAX_IMAGE_BYTES else MAX_TEXT_BYTES
+                    // Over-cap picks read as null and are ignored rather than processed.
+                    val bytes = withContext(Dispatchers.IO) {
+                        context.contentResolver.openInputStream(uri)?.use { readCapped(it, cap) }
+                    }
+                    if (bytes != null) {
+                        if (isImage) onImageBytes(bytes) else onText(bytes.toString(Charsets.UTF_8))
+                    }
+                } finally {
+                    reading = false
+                }
             }
         }
     }
@@ -280,9 +311,22 @@ private fun FileImportPanel(onText: (String) -> Boolean, onImageBytes: (ByteArra
         )
         OutlinedButton(
             onClick = { launcher.launch("*/*") },
+            enabled = !working,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(stringResource(R.string.recover_pick_file))
+        }
+        if (working) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                Text(
+                    text = stringResource(R.string.recover_file_decoding),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
     }
 }

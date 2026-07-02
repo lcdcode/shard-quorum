@@ -1,20 +1,31 @@
 package com.lcdcode.shardquorum.ui.create
 
+import com.lcdcode.shardquorum.MainDispatcherRule
+import com.lcdcode.shardquorum.qr.QrDecoder
+import com.lcdcode.shardquorum.qr.UnavailableQrDecoder
 import com.lcdcode.shardquorum.sskr.KekEnvelope
 import com.lcdcode.shardquorum.sskr.Sskr
 import com.lcdcode.shardquorum.sskr.Ur
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class CreateSecretViewModelTest {
 
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
+
     private fun viewModel(configure: CreateSecretViewModel.() -> Unit = {}) =
-        CreateSecretViewModel().apply(configure)
+        CreateSecretViewModel(decodeDispatcher = mainDispatcherRule.dispatcher).apply(configure)
 
     // --- Validation ---
 
@@ -289,6 +300,38 @@ class CreateSecretViewModelTest {
         val foreign = Sskr.generate(3, 5, ByteArray(16) { 9 }, java.security.SecureRandom())
         assertFalse(vm.addVerifyText(Ur.toUr(foreign.first())))
         assertEquals(VerifyInputError.DIFFERENT_SPLIT, vm.verifyError)
+        assertEquals(0, vm.verifyShares.size)
+    }
+
+    @Test
+    fun verifyImageFilesDecodedSharesAndVerifies() = runTest {
+        // A picked sheet image (decode runs async) verifies just like typed text.
+        val vm = viewModel {
+            name = "Vault"
+            secretInput = "correct horse battery staple"
+        }
+        vm.generate()
+        val pages = requireNotNull(vm.shards)
+        vm.startVerify()
+        vm.addVerifyImage(ByteArray(8), QrDecoder { pages.take(3).map { it.shareUrForQr } })
+        assertTrue(vm.isDecoding)
+        advanceUntilIdle()
+        assertFalse(vm.isDecoding)
+        assertEquals(VerifyState.VERIFIED, vm.verifyState)
+    }
+
+    @Test
+    fun verifyImageDecodeFailureSurfacesError() = runTest {
+        val vm = viewModel {
+            name = "Vault"
+            secretInput = "abc"
+        }
+        vm.generate()
+        vm.startVerify()
+        vm.addVerifyImage(ByteArray(8), UnavailableQrDecoder())
+        advanceUntilIdle()
+        assertEquals(VerifyInputError.IMAGE_DECODE_FAILED, vm.verifyError)
+        assertFalse(vm.isDecoding)
         assertEquals(0, vm.verifyShares.size)
     }
 

@@ -20,9 +20,9 @@ import com.google.zxing.multi.qrcode.QRCodeMultiReader
  * IntArray a maliciously huge image could force us to allocate, while leaving
  * normal high-resolution photos of a printed shard decodable.
  *
- * Decoding runs synchronously on the caller's thread. Callers should invoke it
- * off the main thread for large images; current call sites decode a single
- * picked image, which is acceptable inline.
+ * Decoding runs synchronously on the caller's thread and is expensive: with
+ * TRY_HARDER, a photo near the pixel cap can take seconds. Callers MUST invoke
+ * it off the main thread; the ViewModels dispatch it to a background dispatcher.
  */
 class ZxingQrDecoder : QrDecoder {
 

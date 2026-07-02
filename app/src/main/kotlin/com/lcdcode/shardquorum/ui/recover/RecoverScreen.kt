@@ -104,6 +104,7 @@ private fun CollectionScreen(viewModel: RecoverViewModel) {
         ShardInputPanel(
             onText = { viewModel.addBundle(it) },
             onImageBytes = { viewModel.addFromImage(it, decoder) },
+            busy = viewModel.isDecoding,
         )
 
         viewModel.error?.let {

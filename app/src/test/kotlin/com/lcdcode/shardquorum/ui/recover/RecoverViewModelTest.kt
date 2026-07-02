@@ -1,5 +1,6 @@
 package com.lcdcode.shardquorum.ui.recover
 
+import com.lcdcode.shardquorum.MainDispatcherRule
 import com.lcdcode.shardquorum.qr.QrDecodeException
 import com.lcdcode.shardquorum.qr.QrDecoder
 import com.lcdcode.shardquorum.qr.UnavailableQrDecoder
@@ -9,17 +10,28 @@ import com.lcdcode.shardquorum.ui.create.ShardPage
 import com.lcdcode.shardquorum.sskr.KekEnvelope
 import com.lcdcode.shardquorum.sskr.Sskr
 import com.lcdcode.shardquorum.sskr.Ur
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 import java.security.SecureRandom
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class RecoverViewModelTest {
 
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
+
     private val random = SecureRandom()
+
+    /** ViewModel whose image decodes run on the test scheduler. */
+    private fun viewModel() = RecoverViewModel(decodeDispatcher = mainDispatcherRule.dispatcher)
 
     // --- KEK-mode recovery (shares + envelope) ---
 
@@ -212,28 +224,32 @@ class RecoverViewModelTest {
         assertFalse(vm.hasEnvelope)
     }
 
-    // --- Image path (stubbed decoder) ---
+    // --- Image path (stubbed decoder; decode runs async off the main thread) ---
 
     @Test
-    fun imageDecodeReportsFailureWhenDecoderThrows() {
+    fun imageDecodeReportsFailureWhenDecoderThrows() = runTest {
         // A decoder that finds no QR (here the always-throwing stub) surfaces a
         // decode failure, not a crash.
-        val vm = RecoverViewModel()
-        assertFalse(vm.addFromImage(ByteArray(8), UnavailableQrDecoder()))
+        val vm = viewModel()
+        vm.addFromImage(ByteArray(8), UnavailableQrDecoder())
+        advanceUntilIdle()
         assertEquals(RecoverError.IMAGE_DECODE_FAILED, vm.error)
+        assertFalse(vm.isDecoding)
     }
 
     @Test
-    fun imageDecodeFilesResultFromWorkingDecoder() {
+    fun imageDecodeFilesResultFromWorkingDecoder() = runTest {
         val shares = Sskr.generate(2, 3, ByteArray(16) { 1 }, random)
         val fakeDecoder = QrDecoder { listOf(Ur.toUr(shares[0])) }
-        val vm = RecoverViewModel()
-        assertTrue(vm.addFromImage(ByteArray(8), fakeDecoder))
+        val vm = viewModel()
+        vm.addFromImage(ByteArray(8), fakeDecoder)
+        advanceUntilIdle()
         assertEquals(1, vm.shares.size)
+        assertNull(vm.error)
     }
 
     @Test
-    fun bundledImageFilesBothShardAndEnvelope() {
+    fun bundledImageFilesBothShardAndEnvelope() = runTest {
         // A saved sheet PNG holds two QRs: the shard and the recovery envelope.
         val protected = KekEnvelope.protect(2, 3, "bundled".toByteArray(), random)
         val bundledDecoder = QrDecoder {
@@ -242,10 +258,26 @@ class RecoverViewModelTest {
                 Ur.toEnvelopeUr(protected.envelope),
             )
         }
-        val vm = RecoverViewModel()
-        assertTrue(vm.addFromImage(ByteArray(8), bundledDecoder))
+        val vm = viewModel()
+        vm.addFromImage(ByteArray(8), bundledDecoder)
+        advanceUntilIdle()
         assertEquals(1, vm.shares.size)
         assertTrue(vm.hasEnvelope)
+    }
+
+    @Test
+    fun isDecodingCoversTheDecodeAndBlocksReentry() = runTest {
+        val shares = Sskr.generate(2, 3, ByteArray(16) { 1 }, random)
+        val first = QrDecoder { listOf(Ur.toUr(shares[0])) }
+        val second = QrDecoder { listOf(Ur.toUr(shares[1])) }
+        val vm = viewModel()
+        vm.addFromImage(ByteArray(8), first)
+        assertTrue(vm.isDecoding)
+        // A pick while a decode is in flight is dropped, not queued.
+        vm.addFromImage(ByteArray(8), second)
+        advanceUntilIdle()
+        assertFalse(vm.isDecoding)
+        assertEquals(1, vm.shares.size)
     }
 
     // --- Bundle import (saved words file / pasted blob) ---

@@ -14,6 +14,9 @@ composeBom = "2024.09.03"
 zxingCore = "3.5.4"
 # CameraX 1.3.x is the stable line that compiles against SDK 34 (1.4.x needs 35).
 camerax = "1.3.4"
+# Matches the coroutines line lifecycle 2.8.x already pulls in transitively;
+# pinned explicitly because the app now uses Dispatchers/withContext directly.
+kotlinxCoroutines = "1.8.1"
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
@@ -39,3 +42,5 @@ androidx-camera-core = { group = "androidx.camera", name = "camera-core", versio
 androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "camerax" }
 androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
 androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
+kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinxCoroutines" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }

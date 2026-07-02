@@ -80,6 +80,7 @@ dependencies {
     implementation(project(":qrcodegen"))
     implementation(libs.zxing.core)
 
+    implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
@@ -99,6 +100,7 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
 
 // Privacy guard: fail the build if the merged manifest declares ANY permission

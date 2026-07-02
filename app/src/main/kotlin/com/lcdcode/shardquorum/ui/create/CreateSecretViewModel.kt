@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.lcdcode.shardquorum.qr.QrDecodeException
 import com.lcdcode.shardquorum.qr.QrDecoder
 import com.lcdcode.shardquorum.sskr.KekEnvelope
@@ -14,6 +15,10 @@ import com.lcdcode.shardquorum.sskr.Sskr
 import com.lcdcode.shardquorum.sskr.SskrShare
 import com.lcdcode.shardquorum.sskr.Ur
 import java.security.MessageDigest
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * How the secret is protected.
@@ -54,7 +59,9 @@ data class ShardPage(
     val envelopeUrForQr: String?,
 )
 
-class CreateSecretViewModel : ViewModel() {
+class CreateSecretViewModel(
+    private val decodeDispatcher: CoroutineDispatcher = Dispatchers.Default,
+) : ViewModel() {
     var name by mutableStateOf("")
     var secretInput by mutableStateOf("")
     var mode by mutableStateOf(SecretMode.KEK)
@@ -80,6 +87,8 @@ class CreateSecretViewModel : ViewModel() {
     var verifyState by mutableStateOf(VerifyState.COLLECTING)
         private set
     var verifyError by mutableStateOf<VerifyInputError?>(null)
+        private set
+    var isDecoding by mutableStateOf(false)
         private set
 
     val verifyCollectedIndices: List<Int>
@@ -241,15 +250,27 @@ class CreateSecretViewModel : ViewModel() {
         return added > 0
     }
 
-    /** Decodes every QR in a picked image, then files them for verification. */
-    fun addVerifyImage(imageBytes: ByteArray, decoder: QrDecoder): Boolean {
-        val texts = try {
-            decoder.decode(imageBytes)
-        } catch (e: QrDecodeException) {
-            verifyError = VerifyInputError.IMAGE_DECODE_FAILED
-            return false
+    /**
+     * Decodes every QR in a picked image, then files them for verification.
+     * Decoding a multi-megapixel photo can take seconds, so it runs on
+     * [decodeDispatcher] with [isDecoding] set for the duration; results land
+     * via [verifyShares]/[verifyError] when the launched work completes. No-op
+     * while a decode is in flight.
+     */
+    fun addVerifyImage(imageBytes: ByteArray, decoder: QrDecoder) {
+        if (isDecoding) return
+        isDecoding = true
+        verifyError = null
+        viewModelScope.launch {
+            try {
+                val texts = withContext(decodeDispatcher) { decoder.decode(imageBytes) }
+                addVerifyText(texts.joinToString("\n"))
+            } catch (e: QrDecodeException) {
+                verifyError = VerifyInputError.IMAGE_DECODE_FAILED
+            } finally {
+                isDecoding = false
+            }
         }
-        return addVerifyText(texts.joinToString("\n"))
     }
 
     private fun attemptVerify() {

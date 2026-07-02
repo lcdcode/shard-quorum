@@ -53,6 +53,7 @@
     <string name="recover_camera_grant">Grant camera access</string>
     <string name="recover_file_help">Import a saved shard file: a QR image (PNG) or a saved words text file.</string>
     <string name="recover_pick_file">Choose file</string>
+    <string name="recover_file_decoding">Reading and decoding the image…</string>
     <string name="recover_button">Recover secret</string>
     <string name="recover_error_unrecognized">Not a recognized shard or envelope.</string>
     <string name="recover_error_different_split">That shard belongs to a different secret.</string>
