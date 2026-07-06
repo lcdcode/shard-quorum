@@ -1,10 +1,10 @@
 package com.lcdcode.shardquorum.qr
 
 /**
- * Decodes a QR code into its text payload. The concrete implementation (camera
- * frame and image-file decoding) is deferred until the scanner library is
- * chosen - see the parked zxing-cpp vs. memory-safe-Java decision. Abstracting
- * it here keeps the recovery flow buildable and testable in the meantime.
+ * Decodes a QR code into its text payload. The production implementation is
+ * [ZxingQrDecoder] (zxing core, chosen for memory safety over a native
+ * decoder); this abstraction keeps the ViewModels decoupled from it and lets
+ * unit tests substitute a stub.
  */
 fun interface QrDecoder {
     /**
@@ -17,7 +17,7 @@ fun interface QrDecoder {
 
 class QrDecodeException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
-/** Placeholder decoder until a scanner library is wired in; always fails. */
+/** Always-failing decoder; used by unit tests to exercise the decode-failure path. */
 class UnavailableQrDecoder : QrDecoder {
     override fun decode(imageBytes: ByteArray): List<String> =
         throw QrDecodeException("QR decoding is not implemented yet")

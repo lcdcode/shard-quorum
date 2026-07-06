@@ -2,11 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!--
-        PRIVACY CONSTRAINT: this app declares NO permissions at all. Without
-        android.permission.INTERNET the process cannot open a socket, which makes
-        exfiltration of key material impossible regardless of included libraries.
-        The :app build has a verifyNoNetwork* task that fails the build if any
-        network permission ever reaches the merged manifest.
+        PRIVACY CONSTRAINT: this app declares no network-capable permissions.
+        Without android.permission.INTERNET the process cannot open a socket,
+        which makes exfiltration of key material impossible regardless of
+        included libraries. The :app build has a verifyNoNetwork* task that
+        fails the build if any permission outside the reviewed allowlist
+        (currently CAMERA only) reaches the merged manifest.
 
         CAMERA is used only to scan shard QR codes during recovery; it is
         runtime-requested and never required to install or to use the
@@ -38,9 +39,10 @@
         </activity>
 
         <!--
-            Exposes a single staged shard PNG from cache/shared so it can be
-            handed to a share target. exported=false + per-Intent read grant
-            means only the chosen app, for that one share, can read it.
+            Exposes a single staged shard file (QR-sheet PNG or recovery-kit
+            ZIP) from cache/shared so it can be handed to a share target.
+            exported=false + per-Intent read grant means only the chosen app,
+            for that one share, can read it.
         -->
         <provider
             android:name="androidx.core.content.FileProvider"

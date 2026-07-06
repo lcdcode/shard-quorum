@@ -331,8 +331,9 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
     }
 
     // Rendering the QR sheet (bitmap draw + PNG compress) takes long enough to
-    // drop frames, so share/save payloads are built on Default and staged on IO
-    // before the chooser/picker is launched from the main thread.
+    // drop frames, so share/save payloads are built on Default. Sharing then
+    // stages the file to cache on IO before the chooser is launched from the
+    // main thread; saves stage in memory instead (see saveStaged).
     fun shareStaged(fileName: String, mimeType: String, buildPayload: () -> ByteArray) {
         if (exporting) return
         exporting = true

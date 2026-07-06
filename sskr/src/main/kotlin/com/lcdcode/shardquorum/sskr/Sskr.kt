@@ -71,7 +71,9 @@ object Sskr {
         require(memberThreshold >= MIN_THRESHOLD) {
             "memberThreshold must be >= $MIN_THRESHOLD (1-of-N provides no protection)"
         }
-        // Deduplicate by member index; duplicates of the same share are harmless.
+        // Deduplicate by member index (last value wins): identical duplicates are
+        // harmless, and a conflicting survivor is still caught by Shamir's
+        // digest/consistency checks.
         val byIndex = parsed.associate { it.memberIndex to it.value }
         require(byIndex.size >= memberThreshold) {
             "need at least $memberThreshold distinct shares, got ${byIndex.size}"
