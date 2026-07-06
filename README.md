@@ -1,8 +1,9 @@
 # ShardQuorum
 
-A *quorum of shards*...
-
 ShardQuorum is an offline Android app that splits a high-value secret into a number of printable / hand-transcribable 'shards' or shares, a sufficient majority of which reconstruct it, while fewer than this reveal nothing (information-theoretic security via Shamir's Secret Sharing).
+
+While the app is the easiest way to recombine
+shards, every shard kit contains one shard plus everything needed to recover the secret once the minimum number of shards are brought back together; no app required!
 
 Use cases: disaster-proof backup of a password-manager master passphrase, wallet seeds, LUKS keys, or another app's backup PIN; estate planning (e.g. 2-of-3 among family and a lawyer). Distribute shares physically (home, fireproof box, family, bank box); 3 out of 5 of which, for example, reunite the secret.
 
