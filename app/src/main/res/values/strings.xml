@@ -6,6 +6,19 @@
     <string name="home_recover">Recover from shards</string>
     <string name="home_about">How it works</string>
 
+    <string name="onboarding_skip">Skip</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_done">Get started</string>
+
+    <string name="onboarding_1_title">Split a secret into shards</string>
+    <string name="onboarding_1_body">A shard is a piece of your secret — like a key fragment. ShardQuorum splits your secret so that a certain number of shards (the quorum) must be brought together to unlock it. Fewer than that reveal nothing.\n\nAll work happens on this device, entirely offline. Nothing is ever sent to the internet.</string>
+
+    <string name="onboarding_2_title">Creating a secret</string>
+    <string name="onboarding_2_body">Give your secret a label, then type or paste it in. Pick how many shards to create and how many are needed to unlock it (the quorum).\n\nThe app shows you each shard one at a time — save or share them separately. Store them in different places with different people so no single place holds enough to reach the quorum.</string>
+
+    <string name="onboarding_3_title">Recovering your secret</string>
+    <string name="onboarding_3_body">When you need the secret back, gather enough shards to reach the quorum. Scan their QR codes, type the words, or import saved files.\n\nAdd the recovery envelope that came with each shard — it is needed to unlock an encrypted secret. Once the quorum is met, your secret is shown.</string>
+
     <string name="about_title">How ShardQuorum works</string>
     <string name="about_intro">ShardQuorum protects a single high-value secret - a password-manager passphrase, a crypto wallet seed, a disk-encryption key - by splitting it into pieces called shards. You decide how many shards exist and how many are needed to rebuild the secret. The app works entirely offline and never touches the internet.</string>
 
