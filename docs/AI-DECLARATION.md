@@ -6,7 +6,7 @@ processes:
   implementation: pair
   testing: copilot
   documentation: pair
-  review: auto
+  review: pair
   deployment: none
 ---
 
