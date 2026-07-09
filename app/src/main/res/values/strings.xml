@@ -11,13 +11,13 @@
     <string name="onboarding_done">Get started</string>
 
     <string name="onboarding_1_title">Split a secret into shards</string>
-    <string name="onboarding_1_body">A shard is a piece of your secret — like a key fragment. ShardQuorum splits your secret so that a certain number of shards (the quorum) must be brought together to unlock it. Fewer than that reveal nothing.\n\nAll work happens on this device, entirely offline. Nothing is ever sent to the internet.</string>
+    <string name="onboarding_1_body">A shard is a piece of your secret - like a key fragment. ShardQuorum splits your secret so that a certain number of shards (the quorum) must be brought together to unlock it. Fewer than that reveal nothing.\n\nAll work happens on this device, entirely offline. Nothing is ever sent to the internet.</string>
 
     <string name="onboarding_2_title">Creating a secret</string>
-    <string name="onboarding_2_body">Give your secret a label, then type or paste it in. Pick how many shards to create and how many are needed to unlock it (the quorum).\n\nThe app shows you each shard one at a time — save or share them separately. Store them in different places with different people so no single place holds enough to reach the quorum.</string>
+    <string name="onboarding_2_body">Give your secret a label, then type or paste it in. Pick how many shards to create and how many are needed to unlock it (the quorum).\n\nThe app shows you each shard one at a time - save or share them separately. Store them in different places with different people so no single place holds enough to reach the quorum.</string>
 
     <string name="onboarding_3_title">Recovering your secret</string>
-    <string name="onboarding_3_body">When you need the secret back, gather enough shards to reach the quorum. Scan their QR codes, type the words, or import saved files.\n\nAdd the recovery envelope that came with each shard — it is needed to unlock an encrypted secret. Once the quorum is met, your secret is shown.</string>
+    <string name="onboarding_3_body">When you need the secret back, gather enough shards to reach the quorum. Scan their QR codes, type the words, or import saved files.\n\nAdd the recovery envelope that came with each shard - it is needed to unlock an encrypted secret. Once the quorum is met, your secret is shown.</string>
 
     <string name="about_title">How ShardQuorum works</string>
     <string name="about_intro">ShardQuorum protects a single high-value secret - a password-manager passphrase, a crypto wallet seed, a disk-encryption key - by splitting it into pieces called shards. You decide how many shards exist and how many are needed to rebuild the secret. The app works entirely offline and never touches the internet.</string>
@@ -41,7 +41,7 @@
     <string name="about_safety_body">Send each shard a different way. If one app, account, or person ends up holding enough shards, they can rebuild your secret on their own.\n\nWhen the secret is split or rebuilt, the phone briefly sees the whole thing. ShardQuorum protects your secret while it is stored and distributed, not while it is in use - so do this on a device you trust. The screen also blocks screenshots while shards are shown.</string>
 
     <string name="about_interop_heading">Will other apps work?</string>
-    <string name="about_interop_body">Your shards use SSKR, an open standard, but other SSKR-compatible tools can not read them, because ShardQuorum uses an encrypted envelope to protect your secret; other tools can recombine the shards but recover only the random key, not your secret - the envelope that holds the secret is ShardQuorum\'s own format. So for recovery that never depends on this app, keep the contents of the Recovery Kit stored alongside each shard.</string>
+    <string name="about_interop_body">Your shards use SSKR, an open standard, so other SSKR-compatible tools can read and recombine them. But recombining recovers only the random key, not your secret - the encrypted envelope that holds the secret is ShardQuorum\'s own format, and other tools cannot open it. So for recovery that never depends on this app, keep the contents of the Recovery Kit stored alongside each shard.</string>
 
     <string name="about_back">Back</string>
 

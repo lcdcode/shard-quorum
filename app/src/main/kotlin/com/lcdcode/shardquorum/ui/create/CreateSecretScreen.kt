@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -38,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -182,14 +185,15 @@ private fun PresetCard(
     description: String,
 ) {
     Surface(
-        onClick = onClick,
         color = MaterialTheme.colorScheme.surface,
         shape = MaterialTheme.shapes.medium,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier
+                .selectable(selected = selected, onClick = onClick, role = Role.RadioButton)
+                .padding(12.dp),
         ) {
             RadioButton(selected = selected, onClick = null)
             Spacer(Modifier.width(12.dp))
@@ -207,34 +211,29 @@ private fun PresetCard(
 
 @Composable
 private fun PresetSelector(viewModel: CreateSecretViewModel) {
-    val isCustom = remember {
-        PRESETS.none { it.threshold == viewModel.threshold && it.shareCount == viewModel.shareCount }
-    }
-    var showCustom by rememberSaveable { mutableStateOf(isCustom) }
-
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.selectableGroup(),
+    ) {
         PRESETS.forEach { preset ->
             val selected = preset.threshold == viewModel.threshold &&
                 preset.shareCount == viewModel.shareCount
             PresetCard(
                 selected = selected,
-                onClick = {
-                    viewModel.selectPreset(preset.threshold, preset.shareCount)
-                    showCustom = false
-                },
+                onClick = { viewModel.selectPreset(preset.threshold, preset.shareCount) },
                 label = stringResource(preset.labelRes),
                 description = stringResource(preset.descRes),
             )
         }
 
         TextButton(
-            onClick = { showCustom = !showCustom },
+            onClick = viewModel::toggleCustomQuorum,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(stringResource(R.string.create_preset_custom))
         }
 
-        if (showCustom) {
+        if (viewModel.showCustomQuorum) {
             QuorumStepper(
                 label = stringResource(R.string.create_threshold_label, viewModel.threshold),
                 value = viewModel.threshold,

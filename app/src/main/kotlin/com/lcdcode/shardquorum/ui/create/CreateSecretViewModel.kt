@@ -59,6 +59,8 @@ class CreateSecretViewModel(
         private set
     var phase by mutableStateOf(CreatePhase.FORM)
         private set
+    var showCustomQuorum by mutableStateOf(false)
+        private set
 
     // Verify-before-distribute state. Only a SHA-256 fingerprint of the secret
     // is kept (not the secret) plus the envelope ciphertext (KEK mode), so the
@@ -89,9 +91,13 @@ class CreateSecretViewModel(
     }
 
     fun selectPreset(threshold: Int, shareCount: Int) {
-        this.threshold = threshold.coerceIn(MIN_QUORUM, Shamir.MAX_SHARES)
-        this.shareCount = shareCount.coerceIn(MIN_QUORUM, Shamir.MAX_SHARES)
-        if (this.threshold > this.shareCount) this.threshold = this.shareCount
+        setThresholdClamped(threshold)
+        setShareCountClamped(shareCount)
+        showCustomQuorum = false
+    }
+
+    fun toggleCustomQuorum() {
+        showCustomQuorum = !showCustomQuorum
     }
 
     /**
@@ -146,6 +152,7 @@ class CreateSecretViewModel(
         secretInput = ""
         threshold = DEFAULT_THRESHOLD
         shareCount = DEFAULT_SHARE_COUNT
+        showCustomQuorum = false
         error = null
         shards = null
         phase = CreatePhase.FORM

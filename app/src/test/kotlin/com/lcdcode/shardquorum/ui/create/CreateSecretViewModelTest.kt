@@ -71,6 +71,38 @@ class CreateSecretViewModelTest {
         assertEquals(CreateSecretViewModel.MIN_QUORUM, vm.shareCount)
     }
 
+    // --- Presets ---
+
+    @Test
+    fun selectPresetAppliesPresetValues() {
+        val vm = viewModel()
+        vm.selectPreset(5, 7)
+        assertEquals(5, vm.threshold)
+        assertEquals(7, vm.shareCount)
+    }
+
+    @Test
+    fun selectPresetKeepsQuorumCoherent() {
+        val vm = viewModel()
+        // Threshold above the count settles at the count, like the steppers.
+        vm.selectPreset(10, 5)
+        assertEquals(5, vm.threshold)
+        assertEquals(5, vm.shareCount)
+        // Out-of-range values clamp to the valid quorum bounds.
+        vm.selectPreset(0, 99)
+        assertEquals(CreateSecretViewModel.MIN_QUORUM, vm.threshold)
+        assertEquals(16, vm.shareCount)
+    }
+
+    @Test
+    fun selectPresetCollapsesCustomQuorum() {
+        val vm = viewModel()
+        vm.toggleCustomQuorum()
+        assertTrue(vm.showCustomQuorum)
+        vm.selectPreset(3, 5)
+        assertFalse(vm.showCustomQuorum)
+    }
+
     // --- Generation ---
 
     @Test
@@ -262,6 +294,7 @@ class CreateSecretViewModelTest {
             name = "Test"
             secretInput = "abc"
         }
+        vm.toggleCustomQuorum()
         vm.generate()
         assertNotNull(vm.shards)
         vm.reset()
@@ -271,6 +304,7 @@ class CreateSecretViewModelTest {
         assertEquals("", vm.secretInput)
         assertEquals(CreateSecretViewModel.DEFAULT_THRESHOLD, vm.threshold)
         assertEquals(CreateSecretViewModel.DEFAULT_SHARE_COUNT, vm.shareCount)
+        assertFalse(vm.showCustomQuorum)
         assertEquals(CreatePhase.FORM, vm.phase)
     }
 
