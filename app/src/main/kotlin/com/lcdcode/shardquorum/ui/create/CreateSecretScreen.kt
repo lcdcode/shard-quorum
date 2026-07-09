@@ -11,15 +11,19 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -36,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -121,37 +126,17 @@ private fun ParamsForm(viewModel: CreateSecretViewModel) {
             modifier = Modifier.fillMaxWidth(),
         )
 
-        ModeSelector(viewModel)
-
         OutlinedTextField(
             value = viewModel.secretInput,
             onValueChange = { viewModel.secretInput = it },
-            label = {
-                Text(
-                    stringResource(
-                        when (viewModel.mode) {
-                            SecretMode.KEK -> R.string.create_secret_label_text
-                            SecretMode.DIRECT -> R.string.create_secret_label_hex
-                        },
-                    ),
-                )
-            },
-            isError = viewModel.error in listOf(
-                CreateError.SECRET_REQUIRED, CreateError.HEX_INVALID, CreateError.HEX_LENGTH,
-            ),
+            label = { Text(stringResource(R.string.create_secret_label_text)) },
+            placeholder = { Text(stringResource(R.string.create_secret_placeholder)) },
+            supportingText = { Text(stringResource(R.string.create_secret_supporting)) },
+            isError = viewModel.error == CreateError.SECRET_REQUIRED,
             modifier = Modifier.fillMaxWidth(),
         )
 
-        QuorumStepper(
-            label = stringResource(R.string.create_threshold_label, viewModel.threshold),
-            value = viewModel.threshold,
-            onChange = viewModel::setThresholdClamped,
-        )
-        QuorumStepper(
-            label = stringResource(R.string.create_share_count_label, viewModel.shareCount),
-            value = viewModel.shareCount,
-            onChange = viewModel::setShareCountClamped,
-        )
+        PresetSelector(viewModel)
         Text(
             text = stringResource(
                 R.string.create_scheme_summary, viewModel.threshold, viewModel.shareCount,
@@ -174,31 +159,6 @@ private fun ParamsForm(viewModel: CreateSecretViewModel) {
 }
 
 @Composable
-private fun ModeSelector(viewModel: CreateSecretViewModel) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        FilterChip(
-            selected = viewModel.mode == SecretMode.KEK,
-            onClick = { viewModel.mode = SecretMode.KEK },
-            label = { Text(stringResource(R.string.create_mode_kek)) },
-        )
-        FilterChip(
-            selected = viewModel.mode == SecretMode.DIRECT,
-            onClick = { viewModel.mode = SecretMode.DIRECT },
-            label = { Text(stringResource(R.string.create_mode_direct)) },
-        )
-    }
-    Text(
-        text = stringResource(
-            when (viewModel.mode) {
-                SecretMode.KEK -> R.string.create_mode_kek_description
-                SecretMode.DIRECT -> R.string.create_mode_direct_description
-            },
-        ),
-        style = MaterialTheme.typography.bodySmall,
-    )
-}
-
-@Composable
 private fun QuorumStepper(label: String, value: Int, onChange: (Int) -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -207,6 +167,84 @@ private fun QuorumStepper(label: String, value: Int, onChange: (Int) -> Unit) {
         OutlinedButton(onClick = { onChange(value - 1) }) { Text("-") }
         Text(text = label, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
         OutlinedButton(onClick = { onChange(value + 1) }) { Text("+") }
+    }
+}
+
+private data class Preset(val threshold: Int, val shareCount: Int, val labelRes: Int, val descRes: Int)
+
+private val PRESETS = listOf(
+    Preset(3, 5, R.string.create_preset_3of5, R.string.create_preset_3of5_desc),
+    Preset(5, 7, R.string.create_preset_5of7, R.string.create_preset_5of7_desc),
+)
+
+@Composable
+private fun PresetCard(
+    selected: Boolean,
+    onClick: () -> Unit,
+    label: String,
+    description: String,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .selectable(selected = selected, onClick = onClick, role = Role.RadioButton)
+                .padding(12.dp),
+        ) {
+            RadioButton(selected = selected, onClick = null)
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = label, style = MaterialTheme.typography.titleSmall)
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PresetSelector(viewModel: CreateSecretViewModel) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.selectableGroup(),
+    ) {
+        PRESETS.forEach { preset ->
+            val selected = preset.threshold == viewModel.threshold &&
+                preset.shareCount == viewModel.shareCount
+            PresetCard(
+                selected = selected,
+                onClick = { viewModel.selectPreset(preset.threshold, preset.shareCount) },
+                label = stringResource(preset.labelRes),
+                description = stringResource(preset.descRes),
+            )
+        }
+
+        TextButton(
+            onClick = viewModel::toggleCustomQuorum,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.create_preset_custom))
+        }
+
+        if (viewModel.showCustomQuorum) {
+            QuorumStepper(
+                label = stringResource(R.string.create_threshold_label, viewModel.threshold),
+                value = viewModel.threshold,
+                onChange = viewModel::setThresholdClamped,
+            )
+            QuorumStepper(
+                label = stringResource(R.string.create_share_count_label, viewModel.shareCount),
+                value = viewModel.shareCount,
+                onChange = viewModel::setShareCountClamped,
+            )
+        }
     }
 }
 
@@ -789,6 +827,4 @@ private fun ShardPageContent(shard: ShardPage, modifier: Modifier = Modifier) {
 private fun CreateError.messageRes(): Int = when (this) {
     CreateError.NAME_REQUIRED -> R.string.create_error_name_required
     CreateError.SECRET_REQUIRED -> R.string.create_error_secret_required
-    CreateError.HEX_INVALID -> R.string.create_error_hex_invalid
-    CreateError.HEX_LENGTH -> R.string.create_error_hex_length
 }

@@ -20,24 +20,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/**
- * How the secret is protected.
- *
- * [KEK]: a random 256-bit key is sharded and the secret (any non-empty UTF-8
- * text) is stored AES-GCM-encrypted in an envelope that must accompany the
- * shards. Supports later rotation without redistributing shards.
- *
- * [DIRECT]: the secret bytes themselves (hex, 16..32 bytes, even length) are
- * sharded as bare standard SSKR - recoverable by any SSKR-compatible tool, no
- * envelope involved.
- */
-enum class SecretMode { KEK, DIRECT }
-
 enum class CreateError {
     NAME_REQUIRED,
     SECRET_REQUIRED,
-    HEX_INVALID,
-    HEX_LENGTH,
 }
 
 /** Stage of the create wizard. */
@@ -64,7 +49,6 @@ class CreateSecretViewModel(
 ) : ViewModel() {
     var name by mutableStateOf("")
     var secretInput by mutableStateOf("")
-    var mode by mutableStateOf(SecretMode.KEK)
     var threshold by mutableStateOf(DEFAULT_THRESHOLD)
         private set
     var shareCount by mutableStateOf(DEFAULT_SHARE_COUNT)
@@ -74,6 +58,8 @@ class CreateSecretViewModel(
     var shards by mutableStateOf<List<ShardPage>?>(null)
         private set
     var phase by mutableStateOf(CreatePhase.FORM)
+        private set
+    var showCustomQuorum by mutableStateOf(false)
         private set
 
     // Verify-before-distribute state. Only a SHA-256 fingerprint of the secret
@@ -104,6 +90,16 @@ class CreateSecretViewModel(
         if (threshold > shareCount) threshold = shareCount
     }
 
+    fun selectPreset(threshold: Int, shareCount: Int) {
+        setThresholdClamped(threshold)
+        setShareCountClamped(shareCount)
+        showCustomQuorum = false
+    }
+
+    fun toggleCustomQuorum() {
+        showCustomQuorum = !showCustomQuorum
+    }
+
     /**
      * Validates the form and produces the shard pages. Secret/KEK material is
      * zeroed before returning; only the rendered share/envelope strings remain.
@@ -116,9 +112,19 @@ class CreateSecretViewModel(
             error = CreateError.NAME_REQUIRED
             return
         }
-        when (mode) {
-            SecretMode.KEK -> generateKekMode()
-            SecretMode.DIRECT -> generateDirectMode()
+        if (secretInput.isEmpty()) {
+            error = CreateError.SECRET_REQUIRED
+            return
+        }
+        val secret = secretInput.toByteArray(Charsets.UTF_8)
+        try {
+            val protected = KekEnvelope.protect(threshold, shareCount, secret)
+            armVerification(secret, protected.envelope, protected.shares.first())
+            val envelopeUr = Ur.toEnvelopeUr(protected.envelope).uppercase()
+            shards = toPages(protected.shares, envelopeUr)
+            phase = CreatePhase.RECORD
+        } finally {
+            secret.fill(0)
         }
     }
 
@@ -144,9 +150,9 @@ class CreateSecretViewModel(
     fun reset() {
         name = ""
         secretInput = ""
-        mode = SecretMode.KEK
         threshold = DEFAULT_THRESHOLD
         shareCount = DEFAULT_SHARE_COUNT
+        showCustomQuorum = false
         error = null
         shards = null
         phase = CreatePhase.FORM
@@ -160,44 +166,6 @@ class CreateSecretViewModel(
         verifyShares = emptyList()
         verifyState = VerifyState.COLLECTING
         verifyError = null
-    }
-
-    private fun generateKekMode() {
-        if (secretInput.isEmpty()) {
-            error = CreateError.SECRET_REQUIRED
-            return
-        }
-        val secret = secretInput.toByteArray(Charsets.UTF_8)
-        try {
-            val protected = KekEnvelope.protect(threshold, shareCount, secret)
-            armVerification(secret, protected.envelope, protected.shares.first())
-            val envelopeUr = Ur.toEnvelopeUr(protected.envelope).uppercase()
-            shards = toPages(protected.shares, envelopeUr)
-            phase = CreatePhase.RECORD
-        } finally {
-            secret.fill(0)
-        }
-    }
-
-    private fun generateDirectMode() {
-        val secret = parseHex(secretInput)
-        if (secret == null) {
-            error = if (secretInput.isBlank()) CreateError.SECRET_REQUIRED else CreateError.HEX_INVALID
-            return
-        }
-        if (secret.size !in Shamir.MIN_SECRET_LENGTH..Shamir.MAX_SECRET_LENGTH || secret.size % 2 != 0) {
-            secret.fill(0)
-            error = CreateError.HEX_LENGTH
-            return
-        }
-        try {
-            val generated = Sskr.generate(threshold, shareCount, secret)
-            armVerification(secret, envelope = null, firstShare = generated.first())
-            shards = toPages(generated, envelopeUr = null)
-            phase = CreatePhase.RECORD
-        } finally {
-            secret.fill(0)
-        }
     }
 
     /** Captures what verify needs (secret fingerprint + envelope + split id). */
@@ -349,18 +317,5 @@ class CreateSecretViewModel(
             }
         }
 
-        /** Strict hex parse: whitespace tolerated, returns null on any other defect. */
-        fun parseHex(text: String): ByteArray? {
-            val clean = text.filterNot(Char::isWhitespace)
-            if (clean.isEmpty() || clean.length % 2 != 0) return null
-            val out = ByteArray(clean.length / 2)
-            for (i in out.indices) {
-                val hi = Character.digit(clean[i * 2], 16)
-                val lo = Character.digit(clean[i * 2 + 1], 16)
-                if (hi < 0 || lo < 0) return null
-                out[i] = ((hi shl 4) or lo).toByte()
-            }
-            return out
-        }
     }
 }
