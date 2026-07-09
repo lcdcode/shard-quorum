@@ -88,6 +88,12 @@ class CreateSecretViewModel(
         if (threshold > shareCount) threshold = shareCount
     }
 
+    fun selectPreset(threshold: Int, shareCount: Int) {
+        this.threshold = threshold.coerceIn(MIN_QUORUM, Shamir.MAX_SHARES)
+        this.shareCount = shareCount.coerceIn(MIN_QUORUM, Shamir.MAX_SHARES)
+        if (this.threshold > this.shareCount) this.threshold = this.shareCount
+    }
+
     /**
      * Validates the form and produces the shard pages. Secret/KEK material is
      * zeroed before returning; only the rendered share/envelope strings remain.
