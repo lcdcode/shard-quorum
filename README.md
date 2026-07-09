@@ -9,14 +9,11 @@ Use cases: disaster-proof backup of a password-manager master passphrase, wallet
 
 ## AI Declaration
 
-Written with assistance from Claude Code with Opus 4.8 and Fable 5.
+Written with assistance from Claude Code with Opus 4.8 and Fable 5, among others.
 
 **All code is human reviewed and approved.**
 
-Additional agents used:
-    
-    voltagrnt-qa-sec:code-reviewer
-    voltagent-qa-sec:security-auditor
+For more information, see [AI-DECLARATION.md](docs/AI-DECLARATION.md)
 
 ## Methodology
 
