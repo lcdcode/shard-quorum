@@ -44,40 +44,6 @@ class CreateSecretViewModelTest {
         assertEquals(CreateError.SECRET_REQUIRED, vm.error)
     }
 
-    @Test
-    fun badHexRejectedInDirectMode() {
-        val vm = viewModel {
-            name = "Test"
-            mode = SecretMode.DIRECT
-            secretInput = "not hex at all"
-        }
-        vm.generate()
-        assertEquals(CreateError.HEX_INVALID, vm.error)
-    }
-
-    @Test
-    fun wrongHexLengthRejectedInDirectMode() {
-        val vm = viewModel {
-            name = "Test"
-            mode = SecretMode.DIRECT
-            secretInput = "aabb"
-        }
-        vm.generate()
-        assertEquals(CreateError.HEX_LENGTH, vm.error)
-    }
-
-    @Test
-    fun oddByteCountRejectedInDirectMode() {
-        // 17 bytes: inside 16..32 but odd, which SSKR forbids.
-        val vm = viewModel {
-            name = "Test"
-            mode = SecretMode.DIRECT
-            secretInput = "00".repeat(17)
-        }
-        vm.generate()
-        assertEquals(CreateError.HEX_LENGTH, vm.error)
-    }
-
     // --- Quorum clamping ---
 
     @Test
@@ -105,10 +71,10 @@ class CreateSecretViewModelTest {
         assertEquals(CreateSecretViewModel.MIN_QUORUM, vm.shareCount)
     }
 
-    // --- Generation, KEK mode ---
+    // --- Generation ---
 
     @Test
-    fun kekModeShardsRecoverTheSecret() {
+    fun shardsRecoverTheSecret() {
         val vm = viewModel {
             name = "Vault passphrase"
             secretInput = "correct horse battery staple"
@@ -130,7 +96,7 @@ class CreateSecretViewModelTest {
     }
 
     @Test
-    fun kekModeBytewordsAlsoRecoverable() {
+    fun bytewordsAlsoRecoverable() {
         val vm = viewModel {
             name = "Test"
             secretInput = "s3cret"
@@ -144,43 +110,6 @@ class CreateSecretViewModelTest {
                 Ur.fromStandardBytewords(page.shareBytewords),
             )
         }
-    }
-
-    // --- Generation, direct mode ---
-
-    @Test
-    fun directModeShardsRecoverTheSecretBytes() {
-        val secretHex = "ff00112233445566778899aabbccddee"
-        val vm = viewModel {
-            name = "Seed"
-            mode = SecretMode.DIRECT
-            secretInput = secretHex
-        }
-        vm.setThresholdClamped(3)
-        vm.setShareCountClamped(4)
-        vm.generate()
-        assertNull(vm.error)
-        val pages = requireNotNull(vm.shards)
-        assertEquals(4, pages.size)
-        assertNull(pages.first().envelopeUrForQr)
-
-        val shares = pages.take(3).map { Ur.fromUr(it.shareUrForQr) }
-        assertArrayEquals(
-            CreateSecretViewModel.parseHex(secretHex),
-            Sskr.combine(shares),
-        )
-    }
-
-    @Test
-    fun directModeAcceptsWhitespaceInHex() {
-        val vm = viewModel {
-            name = "Seed"
-            mode = SecretMode.DIRECT
-            secretInput = "ff00 1122 3344 5566 7788 99aa bbcc ddee"
-        }
-        vm.generate()
-        assertNull(vm.error)
-        assertNotNull(vm.shards)
     }
 
     // --- Lifecycle ---
@@ -211,22 +140,12 @@ class CreateSecretViewModelTest {
         assertTrue(text.contains("shard 1 of 5"))
         assertTrue(text.contains(page.shareBytewords))
         assertTrue(text.contains(page.shareUrForQr.lowercase()))
-        // KEK mode: envelope must travel with the shard.
+        // Envelope must travel with the shard.
         assertTrue(text.contains(page.envelopeUrForQr!!.lowercase()))
         // Words appear before the UR string to avoid confusing the two.
-        assertTrue(text.indexOf(page.shareBytewords) < text.indexOf(page.shareUrForQr.lowercase()))
-    }
-
-    @Test
-    fun directModeShareTextHasNoEnvelope() {
-        val vm = viewModel {
-            name = "Seed"
-            mode = SecretMode.DIRECT
-            secretInput = "ff00112233445566778899aabbccddee"
-        }
-        vm.generate()
-        val text = CreateSecretViewModel.shareText(requireNotNull(vm.shards).first())
-        assertFalse(text.contains("envelope"))
+        assertTrue(
+            text.indexOf(page.shareBytewords) < text.indexOf(page.shareUrForQr.lowercase())
+        )
     }
 
     // --- Verify-before-distribute ---
@@ -244,7 +163,7 @@ class CreateSecretViewModelTest {
     }
 
     @Test
-    fun verifyingWithCorrectKekSharesSucceeds() {
+    fun verifyingWithCorrectSharesSucceeds() {
         val vm = viewModel {
             name = "Vault"
             secretInput = "correct horse battery staple"
@@ -252,25 +171,11 @@ class CreateSecretViewModelTest {
         vm.generate()
         val pages = requireNotNull(vm.shards)
         vm.startVerify()
-        // Re-enter the threshold of shards plus the envelope, as a recipient would.
+        // Re-enter the threshold of shards, as a recipient would.
         vm.addVerifyText(pages[4].shareUrForQr)
         vm.addVerifyText(pages[0].shareUrForQr)
         assertEquals(VerifyState.COLLECTING, vm.verifyState)
         vm.addVerifyText(pages[2].shareUrForQr)
-        assertEquals(VerifyState.VERIFIED, vm.verifyState)
-    }
-
-    @Test
-    fun verifyingDirectModeSucceeds() {
-        val vm = viewModel {
-            name = "Seed"
-            mode = SecretMode.DIRECT
-            secretInput = "ff00112233445566778899aabbccddee"
-        }
-        vm.generate()
-        val pages = requireNotNull(vm.shards)
-        vm.startVerify()
-        pages.take(3).forEach { vm.addVerifyText(it.shareBytewords) }
         assertEquals(VerifyState.VERIFIED, vm.verifyState)
     }
 
@@ -364,7 +269,6 @@ class CreateSecretViewModelTest {
         assertNull(vm.error)
         assertEquals("", vm.name)
         assertEquals("", vm.secretInput)
-        assertEquals(SecretMode.KEK, vm.mode)
         assertEquals(CreateSecretViewModel.DEFAULT_THRESHOLD, vm.threshold)
         assertEquals(CreateSecretViewModel.DEFAULT_SHARE_COUNT, vm.shareCount)
         assertEquals(CreatePhase.FORM, vm.phase)
@@ -381,15 +285,5 @@ class CreateSecretViewModelTest {
         assertNull(vm.shards)
         assertEquals("Keep me", vm.name)
         assertEquals("abc", vm.secretInput)
-    }
-
-    // --- Hex parser ---
-
-    @Test
-    fun parseHexEdgeCases() {
-        assertNull(CreateSecretViewModel.parseHex(""))
-        assertNull(CreateSecretViewModel.parseHex("a"))
-        assertNull(CreateSecretViewModel.parseHex("zz"))
-        assertArrayEquals(byteArrayOf(0x0f, -1), CreateSecretViewModel.parseHex("0fFF"))
     }
 }

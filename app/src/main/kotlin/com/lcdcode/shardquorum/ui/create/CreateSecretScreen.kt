@@ -15,7 +15,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -121,24 +120,11 @@ private fun ParamsForm(viewModel: CreateSecretViewModel) {
             modifier = Modifier.fillMaxWidth(),
         )
 
-        ModeSelector(viewModel)
-
         OutlinedTextField(
             value = viewModel.secretInput,
             onValueChange = { viewModel.secretInput = it },
-            label = {
-                Text(
-                    stringResource(
-                        when (viewModel.mode) {
-                            SecretMode.KEK -> R.string.create_secret_label_text
-                            SecretMode.DIRECT -> R.string.create_secret_label_hex
-                        },
-                    ),
-                )
-            },
-            isError = viewModel.error in listOf(
-                CreateError.SECRET_REQUIRED, CreateError.HEX_INVALID, CreateError.HEX_LENGTH,
-            ),
+            label = { Text(stringResource(R.string.create_secret_label_text)) },
+            isError = viewModel.error == CreateError.SECRET_REQUIRED,
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -171,31 +157,6 @@ private fun ParamsForm(viewModel: CreateSecretViewModel) {
             Text(stringResource(R.string.create_generate))
         }
     }
-}
-
-@Composable
-private fun ModeSelector(viewModel: CreateSecretViewModel) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        FilterChip(
-            selected = viewModel.mode == SecretMode.KEK,
-            onClick = { viewModel.mode = SecretMode.KEK },
-            label = { Text(stringResource(R.string.create_mode_kek)) },
-        )
-        FilterChip(
-            selected = viewModel.mode == SecretMode.DIRECT,
-            onClick = { viewModel.mode = SecretMode.DIRECT },
-            label = { Text(stringResource(R.string.create_mode_direct)) },
-        )
-    }
-    Text(
-        text = stringResource(
-            when (viewModel.mode) {
-                SecretMode.KEK -> R.string.create_mode_kek_description
-                SecretMode.DIRECT -> R.string.create_mode_direct_description
-            },
-        ),
-        style = MaterialTheme.typography.bodySmall,
-    )
 }
 
 @Composable
@@ -789,6 +750,4 @@ private fun ShardPageContent(shard: ShardPage, modifier: Modifier = Modifier) {
 private fun CreateError.messageRes(): Int = when (this) {
     CreateError.NAME_REQUIRED -> R.string.create_error_name_required
     CreateError.SECRET_REQUIRED -> R.string.create_error_secret_required
-    CreateError.HEX_INVALID -> R.string.create_error_hex_invalid
-    CreateError.HEX_LENGTH -> R.string.create_error_hex_length
 }
