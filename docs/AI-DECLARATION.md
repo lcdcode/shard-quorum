@@ -1,6 +1,6 @@
 ---
 version: "0.1.1"
-level: auto
+level: pair
 processes:
   design: assist
   implementation: pair
