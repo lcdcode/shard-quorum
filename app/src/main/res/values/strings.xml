@@ -72,7 +72,7 @@
     <string name="recover_file_decoding">Reading and decoding the image…</string>
     <string name="recover_button">Recover secret</string>
     <string name="recover_error_unrecognized">Not a recognized shard or envelope.</string>
-    <string name="recover_error_different_split">That shard belongs to a different secret.</string>
+    <string name="recover_error_different_split">That shard belongs to a different secret (different split identifier). Remove it and use only shards from the same set.</string>
     <string name="recover_error_duplicate">That shard was already added.</string>
     <string name="recover_error_not_enough">Add more shards to reach the quorum.</string>
     <string name="recover_error_failed">These shards do not combine into a valid secret. They may be wrong, too few, or damaged.</string>
@@ -84,7 +84,7 @@
     <string name="verify_progress">Re-entered %1$d of %2$d needed</string>
     <string name="verify_ok">Verified - these shards rebuild your secret.</string>
     <string name="verify_mismatch">These shards do NOT rebuild the secret. Re-check what you saved, then try again.</string>
-    <string name="verify_error_different_split">That shard is from a different secret.</string>
+    <string name="verify_error_different_split">That shard is from a different secret (different split identifier). Use only shards generated together.</string>
     <string name="verify_finish">Finish</string>
     <string name="verify_skip">Skip verification</string>
     <string name="verify_skip_title">Skip verification?</string>
