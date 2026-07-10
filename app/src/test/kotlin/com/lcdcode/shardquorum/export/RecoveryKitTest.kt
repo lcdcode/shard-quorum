@@ -65,3 +65,19 @@ class RecoveryKitTest {
         assertTrue("README.txt" in RecoveryKit.BUNDLED_FILES)
     }
 }
+
+    fun buildKitWithoutSecretNamePreservesPlaceholders() {
+        val entries = mapOf(
+            "README.txt" to "Title: {secret_name} - {index} of {count}".toByteArray(),
+        )
+        val bytes = ByteArrayOutputStream().also {
+            RecoveryKit.writeZip(entries, it)
+        }.toByteArray()
+        val read = java.util.zip.ZipInputStream(
+            java.io.ByteArrayInputStream(bytes),
+        ).use { zin ->
+            zin.nextEntry
+            String(zin.readBytes(), Charsets.UTF_8)
+        }
+        assertEquals("Title: {secret_name} - {index} of {count}", read)
+    }

@@ -70,10 +70,32 @@ object RecoveryKit {
         shardText: String,
         index: Int,
         count: Int,
+    ): ByteArray = buildKit(assets, shardPng, shardText, index, count, "")
+
+    /**
+     * Builds a recovery kit with a custom README that names the secret and
+     * shard. [secretName] is the user's label; [index] and [count] identify
+     * this shard within the set.
+     */
+    fun buildKit(
+        assets: AssetManager,
+        shardPng: ByteArray,
+        shardText: String,
+        index: Int,
+        count: Int,
+        secretName: String,
     ): ByteArray {
         val entries = assetEntries(assets).toMutableMap()
         entries[shardPngName(index, count)] = shardPng
         entries[shardTextName(index, count)] = shardText.toByteArray(Charsets.UTF_8)
+        if (secretName.isNotEmpty()) {
+            val genericReadme = entries["README.txt"]?.toString(Charsets.UTF_8) ?: ""
+            entries["README.txt"] = genericReadme
+                .replace("{secret_name}", secretName)
+                .replace("{index}", index.toString())
+                .replace("{count}", count.toString())
+                .toByteArray(Charsets.UTF_8)
+        }
         return ByteArrayOutputStream().also { writeZip(entries, it) }.toByteArray()
     }
 }

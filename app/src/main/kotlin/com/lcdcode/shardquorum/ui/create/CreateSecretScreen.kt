@@ -374,6 +374,7 @@ private fun ShardViewer(
         shardText = CreateSecretViewModel.shareText(current),
         index = current.index,
         count = current.count,
+        secretName = current.secretName,
     )
 
     fun chooserFor(send: Intent) {
