@@ -74,5 +74,54 @@ if (kekVec) {
 // 6. Wordlist parity with the spec/impl (sanity).
 check('wordlist length 256', SQ.wordList().length === 256);
 
+// 7. Input validation: clean quorum, cross-split shards, duplicate envelopes,
+//    unparseable lines, and the errors recover() surfaces from them.
+(function () {
+  const vecA = vectors.vectors[0];
+  const vecB = vectors.vectors.find(function (v) {
+    return v.shares[0].serializedHex.slice(0, 4) !== vecA.shares[0].serializedHex.slice(0, 4);
+  });
+  const quorumA = vecA.shares.slice(0, vecA.threshold).map(function (s) { return s.ur; });
+
+  let v = SQ.validateInputs(quorumA);
+  check('validateInputs accepts a clean quorum',
+    v.errors.length === 0 && v.shares.length === vecA.threshold);
+
+  check('validateInputs reports empty input',
+    SQ.validateInputs([]).errors.some(function (m) { return m.indexOf('No valid shards') !== -1; }));
+
+  if (vecB) {
+    v = SQ.validateInputs(quorumA.concat([vecB.shares[0].ur]));
+    check('validateInputs flags cross-split shards',
+      v.errors.some(function (m) { return m.indexOf('DIFFERENT secret') !== -1; }));
+  } else {
+    check('cross-split fixture available (need two vectors with distinct identifiers)', false);
+  }
+
+  if (kekVec) {
+    v = SQ.validateInputs(quorumA.concat([kekVec.envelope.ur, kekVec.envelope.ur]));
+    check('validateInputs flags duplicate envelopes',
+      v.errors.some(function (m) { return m.indexOf('More than one envelope') !== -1; }));
+  }
+
+  v = SQ.validateInputs(['tuna next keep gibberish words that decode to nothing']);
+  check('validateInputs keeps the specific parse error for bad lines',
+    v.errors.some(function (m) { return m.indexOf('Not a recognized shard or envelope') !== -1; }));
+
+  let threw = null;
+  try { SQ.recover(['tuna next keep gibberish words that decode to nothing']); }
+  catch (e) { threw = e.message; }
+  check('recover surfaces the specific parse error, not a generic one',
+    threw !== null && threw.indexOf('Not a recognized shard or envelope') !== -1);
+
+  threw = null;
+  try { SQ.recover(vecB ? quorumA.concat([vecB.shares[0].ur]) : quorumA.concat([])); }
+  catch (e) { threw = e.message; }
+  if (vecB) {
+    check('recover surfaces the friendly cross-split error',
+      threw !== null && threw.indexOf('DIFFERENT secret') !== -1);
+  }
+})();
+
 console.log('\n' + passed + ' checks passed, ' + failed + ' failed.');
 process.exit(failed ? 1 : 0);

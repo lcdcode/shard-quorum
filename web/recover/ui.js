@@ -21,14 +21,10 @@
     try {
       var inputs = shardLines($('shards').value);
       var env = $('envelope').value.trim();
-
-      var validation = SQ.validateInputs(inputs);
-      if (validation.errors.length > 0) {
-        show(out, 'Problems found:\n' + validation.errors.join('\n'), 'err');
-        return;
-      }
-
       if (env) inputs.push(env);
+
+      // recover() validates internally (cross-split shards, duplicate
+      // envelopes, per-line parse errors) and throws the full list at once.
       var res = SQ.recover(inputs);
       var hex = SQ.toHex(res.secret);
       var text = tryUtf8(res.secret);

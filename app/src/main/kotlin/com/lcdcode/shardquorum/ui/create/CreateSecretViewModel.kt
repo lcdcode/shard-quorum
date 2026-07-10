@@ -50,7 +50,18 @@ class CreateSecretViewModel(
 ) : ViewModel() {
     var name by mutableStateOf("")
     var secretInput by mutableStateOf("")
-    val secretByteCount: Int get() = secretInput.toByteArray(Charsets.UTF_8).size
+    // UTF-8 length of the secret, counted per char so no transient plaintext
+    // copy is allocated on every recomposition. Also the single definition of
+    // the length rule generate() enforces.
+    val secretByteCount: Int
+        get() = secretInput.sumOf { c ->
+            when {
+                c.code < 0x80 -> 1
+                c.code < 0x800 -> 2
+                c.isSurrogate() -> 2 // each half of a pair; the pair totals 4
+                else -> 3
+            }.toInt()
+        }
     var threshold by mutableStateOf(DEFAULT_THRESHOLD)
         private set
     var shareCount by mutableStateOf(DEFAULT_SHARE_COUNT)
@@ -127,7 +138,7 @@ class CreateSecretViewModel(
             error = CreateError.SECRET_REQUIRED
             return
         }
-        if (secretInput.toByteArray(Charsets.UTF_8).size > MAX_SECRET_LENGTH) {
+        if (secretByteCount > MAX_SECRET_LENGTH) {
             error = CreateError.SECRET_TOO_LONG
             return
         }
@@ -137,6 +148,7 @@ class CreateSecretViewModel(
             armVerification(secret, protected.envelope, protected.shares.first())
             val envelopeUr = Ur.toEnvelopeUr(protected.envelope).uppercase()
             shards = toPages(protected.shares, envelopeUr)
+            savedShards = emptySet()
             phase = CreatePhase.RECORD
         } finally {
             secret.fill(0)
