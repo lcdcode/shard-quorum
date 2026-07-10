@@ -7,14 +7,14 @@ designed to outlive the app: as long as this kit survives, the secret is
 recoverable, even if the ShardQuorum app no longer runs on any device.
 
 FILES
-  shard-{index}-of-{count}.png               This kit's shard and the recovery envelope, as QR
-                                 codes on one sheet.
-  shard-{index}-of-{count}.txt               The same shard as words you can type by hand, plus
-                                 the QR contents and the recovery envelope as text.
-  ShardQuorum-recover.html       Offline recovery tool. Open in any web browser.
-  RECOVERY-SPEC.md               Complete recovery specification (human- or LLM-readable).
-  recovery-vectors.json          Known-answer test vectors (the definition of correct).
-  README.txt                     This file.
+  shard-{index}-of-{count}.png          This kit's shard and the recovery envelope, as QR
+                            codes on one sheet.
+  shard-{index}-of-{count}.txt          The same shard as words you can type by hand, plus
+                            the QR contents and the recovery envelope as text.
+  ShardQuorum-recover.html  Offline recovery tool. Open in any web browser.
+  RECOVERY-SPEC.md          Complete recovery specification (human- or LLM-readable).
+  recovery-vectors.json     Known-answer test vectors (the definition of correct).
+  README.txt                This file.
 
 This kit contains only ONE shard. Recovery needs a quorum: the minimum number
 of different shards, gathered from the people or places they were given to. The
