@@ -116,6 +116,7 @@
     <string name="create_continue_verify">Continue to verify</string>
     <string name="create_error_name_required">A name is required.</string>
     <string name="create_error_secret_required">Enter the secret to protect.</string>
+    <string name="create_error_secret_too_long">The secret is too long. Maximum is 500 characters.</string>
 
     <string name="shard_showing">Showing shard %1$d of %2$d</string>
     <string name="shard_page_scheme">Any %1$d of %2$d shards reconstruct the secret</string>

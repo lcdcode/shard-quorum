@@ -23,6 +23,7 @@ import kotlinx.coroutines.withContext
 enum class CreateError {
     NAME_REQUIRED,
     SECRET_REQUIRED,
+    SECRET_TOO_LONG,
 }
 
 /** Stage of the create wizard. */
@@ -49,6 +50,7 @@ class CreateSecretViewModel(
 ) : ViewModel() {
     var name by mutableStateOf("")
     var secretInput by mutableStateOf("")
+    val secretByteCount: Int get() = secretInput.toByteArray(Charsets.UTF_8).size
     var threshold by mutableStateOf(DEFAULT_THRESHOLD)
         private set
     var shareCount by mutableStateOf(DEFAULT_SHARE_COUNT)
@@ -114,6 +116,10 @@ class CreateSecretViewModel(
         }
         if (secretInput.isEmpty()) {
             error = CreateError.SECRET_REQUIRED
+            return
+        }
+        if (secretInput.toByteArray(Charsets.UTF_8).size > MAX_SECRET_LENGTH) {
+            error = CreateError.SECRET_TOO_LONG
             return
         }
         val secret = secretInput.toByteArray(Charsets.UTF_8)
@@ -284,6 +290,9 @@ class CreateSecretViewModel(
 
         /** Cap on the secret name: it is printed on every shard, and bounds PNG width. */
         const val MAX_NAME_LENGTH = 24
+
+        /** Maximum secret length in UTF-8 bytes. Keeps the envelope QR scannable. */
+        const val MAX_SECRET_LENGTH = 500
 
         private fun sha256(data: ByteArray): ByteArray =
             MessageDigest.getInstance("SHA-256").digest(data)

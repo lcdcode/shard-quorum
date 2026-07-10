@@ -131,8 +131,25 @@ private fun ParamsForm(viewModel: CreateSecretViewModel) {
             onValueChange = { viewModel.secretInput = it },
             label = { Text(stringResource(R.string.create_secret_label_text)) },
             placeholder = { Text(stringResource(R.string.create_secret_placeholder)) },
-            supportingText = { Text(stringResource(R.string.create_secret_supporting)) },
-            isError = viewModel.error == CreateError.SECRET_REQUIRED,
+            supportingText = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = stringResource(R.string.create_secret_supporting),
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        "${viewModel.secretByteCount}/${CreateSecretViewModel.MAX_SECRET_LENGTH}",
+                        color = if (viewModel.secretByteCount > CreateSecretViewModel.MAX_SECRET_LENGTH)
+                            MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            isError = viewModel.error == CreateError.SECRET_REQUIRED
+                || viewModel.error == CreateError.SECRET_TOO_LONG,
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -827,4 +844,5 @@ private fun ShardPageContent(shard: ShardPage, modifier: Modifier = Modifier) {
 private fun CreateError.messageRes(): Int = when (this) {
     CreateError.NAME_REQUIRED -> R.string.create_error_name_required
     CreateError.SECRET_REQUIRED -> R.string.create_error_secret_required
+    CreateError.SECRET_TOO_LONG -> R.string.create_error_secret_too_long
 }

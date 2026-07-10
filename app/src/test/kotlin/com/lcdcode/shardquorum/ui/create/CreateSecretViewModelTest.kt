@@ -320,4 +320,25 @@ class CreateSecretViewModelTest {
         assertEquals("Keep me", vm.name)
         assertEquals("abc", vm.secretInput)
     }
+    @Test
+    fun secretTooLongRejected() {
+        val vm = viewModel {
+            name = "Test"
+            secretInput = "a".repeat(CreateSecretViewModel.MAX_SECRET_LENGTH + 1)
+        }
+        vm.generate()
+        assertEquals(CreateError.SECRET_TOO_LONG, vm.error)
+        assertNull(vm.shards)
+    }
+
+    @Test
+    fun secretAtMaxLengthAccepted() {
+        val vm = viewModel {
+            name = "Test"
+            secretInput = "a".repeat(CreateSecretViewModel.MAX_SECRET_LENGTH)
+        }
+        vm.generate()
+        assertNull(vm.error)
+        assertNotNull(vm.shards)
+    }
 }
