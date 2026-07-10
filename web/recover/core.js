@@ -529,6 +529,44 @@
 
   // --- high-level recovery -------------------------------------------------
 
+  // Validate inputs before attempting recovery: parse everything, detect
+  // cross-split shards, and surface clear errors early.
+  function validateInputs(inputs) {
+    const shares = [];
+    let envelope = null;
+    const errors = [];
+    inputs.forEach(function (text) {
+      if (!text || !text.trim()) return;
+      try {
+        const parsed = parseInput(text);
+        if (parsed.kind === 'envelope') {
+          if (envelope) errors.push('More than one envelope provided.');
+          envelope = parsed.bytes;
+        } else {
+          shares.push(parsed);
+        }
+      } catch (e) {
+        // Keep unrecognised lines for the main recover() to report.
+      }
+    });
+    if (shares.length === 0) {
+      errors.push('No valid shards found.');
+      return { shares: [], envelope: null, errors: errors };
+    }
+    const id = shares[0].header.identifier;
+    const mismatched = [];
+    shares.forEach(function (s, i) {
+      if (s.header.identifier !== id) mismatched.push(i);
+    });
+    if (mismatched.length > 0) {
+      errors.push(
+        'Some shards belong to a DIFFERENT secret (different split identifier). ' +
+        'All shards must come from the same secret. Remove the mismatched shard(s) and try again.'
+      );
+    }
+    return { shares: shares, envelope: envelope, errors: errors };
+  }
+
   // inputs: array of strings (shard ByteWords/UR, and optionally the envelope UR).
   // Returns {mode, secret: Uint8Array, ambiguous?: true}.
   function recover(inputs) {
@@ -558,7 +596,7 @@
     interpolate: interpolate, shamirCombine: shamirCombine, combineShares: combineShares,
     sha256: sha256, hmacSha256: hmacSha256,
     aesEncryptBlock: aesEncryptBlock, aesKeyExpansion: aesKeyExpansion, aesGcmDecrypt: aesGcmDecrypt,
-    openEnvelope: openEnvelope, recover: recover,
+    openEnvelope: openEnvelope, recover: recover, validateInputs: validateInputs,
     wordList: function () { return WORDS.slice(); }
   };
 
