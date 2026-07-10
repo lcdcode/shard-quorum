@@ -43,9 +43,9 @@ data class CollectedShard(val memberIndex: Int)
  * hand-typed Bytewords) plus an optional KEK recovery envelope, then
  * reconstructs the secret.
  *
- * Mode is inferred at recovery time: if an envelope was supplied the combined
- * shares are treated as the KEK and used to decrypt it; otherwise the combined
- * value is presented directly (direct-shard mode) as hex.
+ * The path is inferred at recovery time: if an envelope was supplied the
+ * combined shares are treated as the KEK and used to decrypt it; otherwise
+ * (plain SSKR shares with no envelope) the combined value is presented as hex.
  */
 class RecoverViewModel(
     private val decodeDispatcher: CoroutineDispatcher = Dispatchers.Default,
@@ -98,7 +98,7 @@ class RecoverViewModel(
 
     /**
      * Lenient import for pasted text or a saved words file: files every line
-     * that parses (the share UR/words line and, in KEK mode, the envelope line),
+     * that parses (the share UR/words line and, if present, the envelope line),
      * silently skipping human-readable text and duplicates. Returns true if at
      * least one new item was added.
      */
@@ -215,8 +215,9 @@ class RecoverViewModel(
                 val combined = Sskr.combine(shareBytes)
                 try {
                     // A KEK is always exactly KEK_LENGTH bytes; a shorter combined
-                    // value can only be a direct secret. A KEK-length value with no
-                    // envelope is ambiguous - flag it so the UI warns.
+                    // value can only be a directly split plain-SSKR secret. A
+                    // KEK-length value with no envelope is ambiguous - flag it so
+                    // the UI warns.
                     RecoveredSecret(
                         display = combined.toHex(),
                         isHex = true,

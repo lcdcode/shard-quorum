@@ -63,8 +63,8 @@ class CreateSecretViewModel(
         private set
 
     // Verify-before-distribute state. Only a SHA-256 fingerprint of the secret
-    // is kept (not the secret) plus the envelope ciphertext (KEK mode), so the
-    // re-entered shards can be proven to rebuild the exact original.
+    // is kept (not the secret) plus the envelope ciphertext, so the re-entered
+    // shards can be proven to rebuild the exact original.
     private var verifyFingerprint: ByteArray? = null
     private var verifyEnvelope: ByteArray? = null
     private var verifyIdentifier: Int? = null
@@ -292,7 +292,7 @@ class CreateSecretViewModel(
          * Plain-text rendering of one shard for sharing/saving. The first line
          * is the secret's name so multiple shards can be told apart. Words come
          * before the UR string to avoid confusing the two; the UR is lowercased
-         * back to canonical form. In KEK mode the recovery envelope is appended.
+         * back to canonical form. The recovery envelope is appended.
          *
          * Note: the name identifies what this shard protects, so a found shard
          * reveals that - an accepted trade for manageability (see project notes).

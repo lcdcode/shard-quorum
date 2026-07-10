@@ -7,10 +7,10 @@ designed to outlive the app: as long as this kit survives, the secret is
 recoverable, even if the ShardQuorum app no longer runs on any device.
 
 FILES
-  shard-*.png               This kit's shard, as a QR image (and recovery
-                            envelope, if encrypted mode was used).
+  shard-*.png               This kit's shard and the recovery envelope, as QR
+                            codes on one sheet.
   shard-*.txt               The same shard as words you can type by hand, plus
-                            the QR contents as text.
+                            the QR contents and the recovery envelope as text.
   ShardQuorum-recover.html  Offline recovery tool. Open in any web browser.
   RECOVERY-SPEC.md          Complete recovery specification (human- or LLM-readable).
   recovery-vectors.json     Known-answer test vectors (the definition of correct).
@@ -28,8 +28,8 @@ STEP 1: WORK OFFLINE
 STEP 2: RECOVER
   Open ShardQuorum-recover.html in a web browser. It self-tests on load. Paste
   at least a quorum of your shards (one per line, from the shard-*.txt files of
-  the different kits), add the recovery envelope if encrypted mode was used, and
-  press Recover.
+  the different kits), add the recovery envelope (it is in every kit's
+  shard-*.txt and on every QR sheet), and press Recover.
 
 IF THE TOOL WILL NOT RUN (years from now, a future browser):
   RECOVERY-SPEC.md is a complete, self-contained specification. Give it to a

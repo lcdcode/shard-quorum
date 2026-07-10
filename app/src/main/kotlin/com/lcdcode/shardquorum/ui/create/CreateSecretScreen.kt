@@ -325,8 +325,8 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
 
     val baseName = "shardquorum-shard-${current.index}-of-${current.count}"
 
-    // The shard QR sheet: the shard code plus, in KEK mode, the recovery
-    // envelope code, so a saved or shared image always carries everything.
+    // The shard QR sheet: the shard code plus the recovery envelope code, so a
+    // saved or shared image always carries everything.
     fun buildShardPng(): ByteArray {
         val sections = buildList {
             add(

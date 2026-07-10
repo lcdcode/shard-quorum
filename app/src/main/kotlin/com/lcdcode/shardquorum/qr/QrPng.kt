@@ -9,9 +9,9 @@ import java.io.ByteArrayOutputStream
 
 /**
  * Renders one or more labeled QR codes into a single PNG for saving. A shard
- * sheet in encrypted-envelope mode stacks the shard QR and the recovery
- * envelope QR in one file, so a saved shard always carries everything needed to
- * recover - the envelope can never be forgotten separately.
+ * sheet stacks the shard QR and the recovery envelope QR in one file, so a
+ * saved shard always carries everything needed to recover - the envelope can
+ * never be forgotten separately.
  */
 object QrPng {
     private const val SCALE = 12

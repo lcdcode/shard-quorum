@@ -43,8 +43,8 @@
   <textarea id="shards" rows="8" placeholder="Paste each shard on its own line.
 Either the printed words (e.g. tuna next keep ...) or its ur:sskr/... string."></textarea>
 
-  <label for="envelope">Recovery envelope (encrypted mode only)</label>
-  <input id="envelope" type="text" placeholder="ur:sq-env/...  (leave blank for direct mode)">
+  <label for="envelope">Recovery envelope</label>
+  <input id="envelope" type="text" placeholder="ur:sq-env/...  (stored with every shard)">
 
   <div class="row">
     <button id="recover-btn" class="primary">Recover secret</button>
@@ -61,11 +61,13 @@ Either the printed words (e.g. tuna next keep ...) or its ur:sskr/... string."><
   <details>
     <summary>How to use this, and how it works</summary>
     <p>Enter at least the quorum (K) of your shards, one per line, as either the printed
-       ByteWords or the <code>ur:sskr/</code> string. In encrypted-envelope mode, also paste
-       the <code>ur:sq-env/</code> envelope. Press Recover.</p>
+       ByteWords or the <code>ur:sskr/</code> string. Also paste the <code>ur:sq-env/</code>
+       recovery envelope stored with your shards. Press Recover.</p>
     <p>This file is self-contained: all logic runs on your device, and it never makes a
-       network request. For a real recovery, disconnect from networks first and verify this
-       file's checksum against the value stored with your shards.</p>
+       network request. For a real recovery, disconnect from networks first, and check this
+       file is authentic: if it came with a <code>MANIFEST.txt</code> and a stored ROOT
+       value, verify those (see the spec); otherwise compare its checksum
+       (e.g. <code>sha256sum</code>) across independently stored kits before trusting it.</p>
     <p>The algorithm is specified in full in <code>docs/RECOVERY-SPEC.md</code>. This tool is
        one implementation of it; the specification plus its test vectors are the root artifact,
        so the secret stays recoverable even if this file is lost.</p>
@@ -74,7 +76,7 @@ Either the printed words (e.g. tuna next keep ...) or its ur:sskr/... string."><
 <script id="sq-vectors" type="application/json">{
   "specVersion": 1,
   "sqkeEnvelopeVersion": 1,
-  "note": "Deterministic, reproducible recovery vectors for ShardQuorum. Any 'threshold' of a vector's shares reconstruct it. In kek mode the envelope is also required. An implementation is correct iff it reproduces every value here.",
+  "note": "Deterministic, reproducible recovery vectors for ShardQuorum. Any 'threshold' of a vector's shares reconstruct it. Vectors with mode 'kek' also require the envelope. An implementation is correct iff it reproduces every value here.",
   "vectors": [
     {
       "name": "direct-2of3-16byte",
@@ -948,14 +950,15 @@ Either the printed words (e.g. tuna next keep ...) or its ur:sskr/... string."><
       var res = SQ.recover(inputs);
       var hex = SQ.toHex(res.secret);
       var text = tryUtf8(res.secret);
-      var lines = ['Recovered (' + res.mode + ' mode):', ''];
+      var lines = [res.mode === 'kek' ? 'Recovered secret:'
+        : 'Recovered (no envelope; combined shards only):', ''];
       if (text !== null) lines.push('Text:  ' + text);
       lines.push('Hex:   ' + hex);
       if (res.ambiguous) {
         lines.push('');
-        lines.push('Note: this 32-byte result may be an encrypted secret’s key rather ' +
-          'than the secret itself. If you created it with a recovery envelope, add that ' +
-          'envelope above and recover again.');
+        lines.push('Note: this 32-byte result is probably an encrypted secret’s key, not ' +
+          'the secret itself. Add the recovery envelope stored with your shards and ' +
+          'recover again.');
       }
       show(out, lines.join('\n'), 'ok');
     } catch (e) {

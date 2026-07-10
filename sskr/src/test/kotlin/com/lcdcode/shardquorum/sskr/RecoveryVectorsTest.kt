@@ -57,9 +57,9 @@ class RecoveryVectorsTest {
             "specVersion" to 1,
             "sqkeEnvelopeVersion" to 1,
             "note" to "Deterministic, reproducible recovery vectors for ShardQuorum. " +
-                "Any 'threshold' of a vector's shares reconstruct it. In kek mode the " +
-                "envelope is also required. An implementation is correct iff it " +
-                "reproduces every value here.",
+                "Any 'threshold' of a vector's shares reconstruct it. Vectors with " +
+                "mode 'kek' also require the envelope. An implementation is correct " +
+                "iff it reproduces every value here.",
             "vectors" to vectors,
         )
 

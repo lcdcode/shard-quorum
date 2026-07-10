@@ -62,7 +62,7 @@
     <string name="recover_word_unknown">“%1$s” is not a valid word.</string>
     <string name="recover_word_suggest">“%1$s” is not a valid word - did you mean: %2$s?</string>
     <string name="recover_add_shard">Add shard</string>
-    <string name="recover_scan_help">Point the camera at a shard\'s QR code - it is added automatically. Scan each shard (and the envelope QR in encrypted mode).</string>
+    <string name="recover_scan_help">Point the camera at a shard\'s QR code - it is added automatically. Scan each shard and the recovery envelope QR.</string>
     <string name="recover_scan_start">Start camera</string>
     <string name="recover_scan_close">Close camera</string>
     <string name="recover_camera_rationale">Camera access is used only to scan shard QR codes, on-device. It is never required - you can also type words or import a file.</string>

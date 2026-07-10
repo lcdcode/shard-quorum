@@ -1,7 +1,7 @@
 {
   "specVersion": 1,
   "sqkeEnvelopeVersion": 1,
-  "note": "Deterministic, reproducible recovery vectors for ShardQuorum. Any 'threshold' of a vector's shares reconstruct it. In kek mode the envelope is also required. An implementation is correct iff it reproduces every value here.",
+  "note": "Deterministic, reproducible recovery vectors for ShardQuorum. Any 'threshold' of a vector's shares reconstruct it. Vectors with mode 'kek' also require the envelope. An implementation is correct iff it reproduces every value here.",
   "vectors": [
     {
       "name": "direct-2of3-16byte",

@@ -25,14 +25,15 @@
       var res = SQ.recover(inputs);
       var hex = SQ.toHex(res.secret);
       var text = tryUtf8(res.secret);
-      var lines = ['Recovered (' + res.mode + ' mode):', ''];
+      var lines = [res.mode === 'kek' ? 'Recovered secret:'
+        : 'Recovered (no envelope; combined shards only):', ''];
       if (text !== null) lines.push('Text:  ' + text);
       lines.push('Hex:   ' + hex);
       if (res.ambiguous) {
         lines.push('');
-        lines.push('Note: this 32-byte result may be an encrypted secret’s key rather ' +
-          'than the secret itself. If you created it with a recovery envelope, add that ' +
-          'envelope above and recover again.');
+        lines.push('Note: this 32-byte result is probably an encrypted secret’s key, not ' +
+          'the secret itself. Add the recovery envelope stored with your shards and ' +
+          'recover again.');
       }
       show(out, lines.join('\n'), 'ok');
     } catch (e) {

@@ -81,7 +81,7 @@ class RecoverViewModelTest {
         assertEquals(RecoveredSecret(secretHex, isHex = true), vm.result)
     }
 
-    // --- KEK-vs-direct mode detection at recovery ---
+    // --- envelope-vs-plain-SSKR detection at recovery ---
 
     @Test
     fun kekSharesWithoutEnvelopeFlagMaybeEncrypted() {

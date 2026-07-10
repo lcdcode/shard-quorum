@@ -1,6 +1,6 @@
 # ShardQuorum Recovery Specification
 
-Status: DRAFT. This document is the self-contained, language-agnostic
+This document is the self-contained, language-agnostic
 specification for recovering a ShardQuorum secret from its shards. It is written
 to be followed by a competent human programmer OR handed to a competent large
 language model (LLM) that will generate a recovery tool in any language.
@@ -26,7 +26,7 @@ Spec version: 1 (covers SSKR single-group shares and `SQKE` envelope version 1).
 8. SSKR share structure: the 5-byte header (BCR-2020-011)
 9. GF(256) field arithmetic
 10. Shamir combination and SLIP-39/SSKR digest verification
-11. Direct-mode recovery
+11. Recovery without an envelope (plain SSKR)
 12. KEK envelope (`SQKE`) decryption
 13. End-to-end recovery procedures
 14. Test vectors (the definition of done)
@@ -41,8 +41,7 @@ Spec version: 1 (covers SSKR single-group shares and `SQKE` envelope version 1).
 
 This document specifies how to recover a secret that was protected with
 ShardQuorum. It covers exactly the recovery path: turning a quorum of transcribed
-or scanned shards (and, in encrypted mode, the recovery envelope) back into the
-original secret.
+or scanned shards plus the recovery envelope back into the original secret.
 
 In scope:
 
@@ -50,7 +49,7 @@ In scope:
   `ur:sskr/` Uniform Resource form) and the `ur:sq-env/` envelope form.
 - Reconstructing the SSKR/Shamir secret from a quorum of shares.
 - Verifying integrity via the embedded digest share.
-- Decrypting the `SQKE` recovery envelope in encrypted mode.
+- Decrypting the `SQKE` recovery envelope.
 
 Out of scope, deliberately:
 
@@ -60,18 +59,18 @@ Out of scope, deliberately:
   splits only. The header layout below describes the general fields, but a
   recovery tool targeting ShardQuorum output may assume a single group.
 
-ShardQuorum has two modes, chosen at creation time:
+ShardQuorum protects every secret the same way: a random 256-bit key (the KEK)
+is split into the shards, and the secret is stored separately, encrypted under
+that key in the `SQKE` envelope. The combined shards yield the KEK, which then
+decrypts the envelope.
 
-- **Direct mode**: the secret (an even number of bytes, 16 to 32) is split
-  directly. The combined shares ARE the secret. Interoperable with any
-  SSKR-compatible tool.
-- **Encrypted-envelope (KEK) mode**: a random 256-bit key (the KEK) is split, and
-  the secret is stored separately, encrypted under that key in the `SQKE`
-  envelope. The combined shares yield the KEK, which then decrypts the envelope.
+The shards themselves are standard SSKR shares, so any SSKR-compatible tool can
+combine them - but combining yields only the KEK. Recovering the secret also
+requires the envelope (Section 12).
 
-You need at least the quorum count (K) of distinct shards. In encrypted mode you
-also need the envelope. Fewer than K shards reveal nothing, by mathematical
-guarantee.
+You need at least the quorum count (K) of distinct shards, plus the envelope.
+Fewer than K shards reveal nothing, by mathematical guarantee; neither does the
+envelope alone.
 
 ---
 
@@ -87,15 +86,24 @@ A tampered copy of this specification could instruct an LLM, or mislead a
 programmer, into building a tool that corrupts or leaks your secret. Before using
 it, verify its authenticity:
 
-1. Compute the SHA-256 of this file using a tool you trust (for example the
-   operating system command `sha256sum`).
-2. Compare it to the recovery bundle's root value that was stored alongside your
-   shards (printed on the shard cards, or kept with them).
-3. If they do not match, stop. Do not use this copy. Obtain another copy and
-   verify again.
+How to verify depends on which form of this document you hold:
 
-Do not skip this even if the file "looks right." The whole trust chain rests on
-this one comparison.
+- **Recovery bundle** (it came with a `MANIFEST.txt`, and a ROOT value was
+  stored with your shards): compute `sha256sum MANIFEST.txt` with a tool you
+  trust and compare it to the stored ROOT; if it matches, run
+  `sha256sum -c MANIFEST.txt` and require every line to say OK.
+- **Per-shard recovery kit** (no manifest): compute the SHA-256 of this file and
+  compare it to the copy in at least one other kit that was stored
+  independently - every kit carries identical files. If you can, also compare
+  against a published copy from the project's source repository.
+
+If the values do not match, at least one copy has been altered. Stop, and trust
+only copies whose hashes agree across a majority of independently stored
+sources.
+
+Do not skip this even if the file "looks right." A single stored copy cannot
+vouch for itself; verification against the stored ROOT, or agreement between
+independently stored copies, is what makes tampering detectable.
 
 ### 2.2 Work offline, on a device you can trust
 
@@ -139,8 +147,8 @@ enough; with cryptography it is not.
 
 - You need at least the quorum (K) of distinct shards. Fewer reveal nothing, by
   mathematical guarantee, not merely by difficulty.
-- In encrypted mode you also need the recovery envelope. Shards alone yield only
-  a random key, not the secret; the envelope alone reveals nothing.
+- You also need the recovery envelope. Shards alone yield only a random key
+  (the KEK), not the secret; the envelope alone reveals nothing.
 - Gather only what you need in one place, and only for as long as you need it. The
   moment a quorum of shards plus the envelope sit together, the secret is
   reconstructible by whoever holds them.
@@ -165,8 +173,8 @@ never receives your shards or secret.
    on a USB drive). Do not run it online.
 4. On the offline device, run the generated tool against the Section 14 test
    vectors. Confirm every vector passes.
-5. Only then, enter your real shards (and envelope, in encrypted mode) into the
-   offline tool to recover your secret.
+5. Only then, enter your real shards and envelope into the offline tool to
+   recover your secret.
 
 If you have a capable offline LLM, you can do steps 1-2 offline as well, which is
 preferable. Either way, the shards are entered only in step 5, only offline.
@@ -189,9 +197,9 @@ Paste the following, then the entire contents of this specification:
 > 4. Include the specification's test vectors as a built-in self-test that runs
 >    first and refuses to proceed unless every vector reproduces its expected
 >    output exactly, including any intermediate values the spec lists.
-> 5. The tool accepts shard inputs as text (ByteWords or `ur:` strings) and, in
->    encrypted mode, the recovery envelope, then prints the recovered secret. It
->    must not transmit, upload, or persist the secret anywhere.
+> 5. The tool accepts shard inputs as text (ByteWords or `ur:` strings) plus the
+>    recovery envelope, then prints the recovered secret. It must not transmit,
+>    upload, or persist the secret anywhere.
 > 6. Provide the complete source in one block, plus the exact command to run the
 >    self-test and then a recovery.
 >
@@ -219,8 +227,8 @@ A shard, as held by a recipient, is one text string in one of these forms:
   a shard's QR code), or
 - a `ur:sskr/...` string (the content of a shard QR code).
 
-In encrypted mode there is additionally a `ur:sq-env/...` string (the envelope QR
-content) that travels with every shard.
+Additionally there is a `ur:sq-env/...` string (the envelope QR content) that
+travels with every shard.
 
 The pipeline from those strings to the secret:
 
@@ -235,14 +243,15 @@ The pipeline from those strings to the secret:
   group shares by identifier; collect >= threshold distinct member values
         |  Section 9, 10 (GF(256) Shamir combine + digest verification)
         v
-  combined output
+  combined output = the 256-bit KEK
         |
-        +-- Direct mode  -> this IS the secret (Section 11). Done.
-        |
-        +-- KEK mode     -> this is the 256-bit KEK.
-                            envelope text (ur:sq-env/) --Section 6,7--> SQKE bytes
-                            Section 12 (AES-256-GCM open with the KEK) -> secret
+        |  envelope text (ur:sq-env/) --Section 6,7--> SQKE bytes
+        v
+  Section 12 (AES-256-GCM open with the KEK) -> secret
 ```
+
+(If there is no envelope - plain SSKR shares from another tool - the combined
+output is itself the secret; see Section 11.)
 
 ## 5. Notation and conventions
 
@@ -517,16 +526,20 @@ false-accept probability of a wrong set is about 2^-32.
 This digest check is the cryptographic integrity guarantee. It is independent of,
 and stronger than, the ByteWords CRC-32, which only catches transcription typos.
 
-## 11. Direct-mode recovery
+## 11. Recovery without an envelope (plain SSKR)
 
-In Direct mode the combined output of Section 10 is the secret itself: an even
-number of bytes between 16 and 32. There is no envelope. Recovery is complete once
-`combine` returns and the digest verifies.
+Every ShardQuorum secret has an envelope, so a ShardQuorum recovery is never
+complete at this stage. But the shards are standard SSKR, and other SSKR tools
+split secrets directly: for such shares the combined output of Section 10 IS the
+secret (an even number of bytes, 16 to 32), and recovery is complete once the
+digest verifies. Some test vectors (Section 14, mode `direct`) use this
+envelope-free path to pin the combine math on its own.
 
 ## 12. KEK envelope (`SQKE`) decryption
 
-In encrypted mode the combined output of Section 10 is a 256-bit (32-byte) key,
-the KEK. The secret is in the envelope, which must be decrypted with that KEK.
+For a ShardQuorum secret the combined output of Section 10 is a 256-bit
+(32-byte) key, the KEK. The secret is in the envelope, which must be decrypted
+with that KEK.
 
 ### 12.1 Envelope wire format
 
@@ -577,17 +590,17 @@ bytes.
 
 1. Build the map `memberIndex -> value` and run Section 10 to get the combined
    output.
-2. Decide the mode:
-   - If a `ur:sq-env/` envelope was provided, this is KEK mode: the combined
-     output is the 32-byte KEK; decrypt the envelope (Section 12) to get the
-     secret.
-   - Otherwise this is Direct mode: the combined output is the secret
-     (Section 11).
-3. Caveat on ambiguity: a combined output of exactly 32 bytes with no envelope
-   present may be either a 32-byte Direct secret or a KEK whose envelope is
-   missing. A recovery tool should surface this case ("this may be an encrypted
-   secret's key; if you used a recovery envelope, add it") rather than silently
-   presenting the KEK as the secret.
+2. Finish:
+   - If a `ur:sq-env/` envelope was provided: the combined output is the 32-byte
+     KEK; decrypt the envelope (Section 12) to get the secret. Every ShardQuorum
+     secret takes this path.
+   - With no envelope (plain SSKR shares from another tool): the combined output
+     is the secret (Section 11).
+3. Caveat on a missing envelope: ShardQuorum shards always have an envelope, so
+   a 32-byte combined output with no envelope present most likely means the
+   envelope was not supplied. A recovery tool should surface this case ("this
+   looks like an encrypted secret's key; add the recovery envelope stored with
+   your shards") rather than silently presenting the KEK as the secret.
 
 ## 14. Test vectors (the definition of done)
 
@@ -597,7 +610,9 @@ implementation is correct if and only if it reproduces every value there.
 
 The file contains, for each vector:
 
-- `name`, `mode` (`direct` or `kek`), `threshold` (K), `shareCount` (N).
+- `name`, `mode` (`kek` = shards plus envelope, the ShardQuorum format; `direct`
+  = envelope-free plain-SSKR shares that pin the combine math, Section 11),
+  `threshold` (K), `shareCount` (N).
 - `secretHex` (and `secretUtf8` for text secrets): the expected recovered secret.
 - For `kek` vectors: `combinedKekHex` (the intermediate KEK from combining the
   shares) and `envelope` (`rawHex` and the `ur:sq-env/` form).
@@ -607,17 +622,20 @@ The file contains, for each vector:
 
 The intermediate values let an implementation localize a failure: if
 `standardBytewords` does not decode to `serializedHex`, the bug is in Section 6/7;
-if the combine does not reach `secretHex` (Direct) or `combinedKekHex` (KEK), it
-is in Section 9/10; if the envelope will not open, it is in Section 12.
+if the combine does not reach `secretHex` (mode `direct`) or `combinedKekHex`
+(mode `kek`), it is in Section 9/10; if the envelope will not open, it is in
+Section 12.
 
 Minimum self-test: for every vector, take any K shares, recover, and check the
-result equals `secretHex`. For KEK vectors, also check the combine equals
+result equals `secretHex`. For `kek` vectors, also check the combine equals
 `combinedKekHex` before opening the envelope.
 
 ## 15. Worked example
 
 From the `direct-2of3-16byte` vector (`docs/recovery-vectors.json`). It is a
-2-of-3 Direct split; any two shares recover it. We use members 0 and 1.
+2-of-3 plain-SSKR split with no envelope (Section 11), so it exercises the
+decode and combine stages on their own; any two shares recover it. We use
+members 0 and 1.
 
 Expected secret (hex): `00112233445566778899aabbccddeeff`.
 
@@ -658,10 +676,11 @@ Step 4, verify the digest (Section 10.2): split the digest share into the 4-byte
 recovered digest and the random remainder, recompute
 `HMAC-SHA256(key = remainder, message = secret)[0..4]`, and confirm equality.
 
-Result: the secret `00112233445566778899aabbccddeeff`. Because this is Direct mode
-(no envelope), that is the final secret. A correct implementation reaches exactly
-this value; if it does not, compare each intermediate above against the vector to
-find the failing stage.
+Result: the secret `00112233445566778899aabbccddeeff`. Because this vector has
+no envelope, the combined output is the final secret; a ShardQuorum recovery
+would instead treat it as the KEK and continue with Section 12. A correct
+implementation reaches exactly this value; if it does not, compare each
+intermediate above against the vector to find the failing stage.
 
 ## 16. Format identifiers and versioning
 
@@ -681,8 +700,7 @@ current vectors matches the current format.
 - **Shard / share**: one distributed piece. Any K of N reconstruct the secret.
 - **Quorum (K)**: the minimum number of shards needed (the `memberThreshold`).
 - **Count (N)**: how many shards exist.
-- **Secret**: the protected value. In Direct mode it is split directly; in KEK
-  mode it lives in the envelope.
+- **Secret**: the protected value, stored encrypted in the envelope.
 - **KEK**: key-encrypting key. A random 256-bit key that is split via SSKR and
   used to decrypt the envelope.
 - **Envelope (`SQKE`)**: the AES-256-GCM ciphertext of the secret under the KEK.
