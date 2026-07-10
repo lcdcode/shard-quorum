@@ -416,6 +416,24 @@ For ShardQuorum output, every share has `groupThreshold = groupCount = 1` and
 `groupIndex = 0` (single group). `memberThreshold` is the quorum K. All shares of
 one secret share the same `identifier`; reject a mix of identifiers.
 
+### 8.1 Detecting mismatched shards
+
+Every shard produced by a single `generate()` call shares the same 16-bit
+`identifier` (bytes 0-1 of the header). Shards with different identifiers come
+from different splits -- they protect different secrets, or different KEKs for
+the same secret. Combining shards with different identifiers will never produce a
+valid result.
+
+A recovery tool SHOULD check that all collected shards share the same identifier
+before attempting combination, and surface a clear error if they do not:
+
+> "Some shards belong to a different secret (different split identifier). All
+> shards must come from the same secret. Remove the mismatched shard(s) and try
+> again."
+
+This is a better user experience than failing later with a generic digest or
+polynomial error, which the user would not know how to resolve.
+
 ## 9. GF(256) field arithmetic
 
 Shamir's scheme operates in the finite field GF(2^8), exactly as in SLIP-39 and
@@ -581,8 +599,9 @@ bytes.
 
 ### 13.2 Group and check
 
-- All shares must share one `identifier` and be single-group (`groupCount = 1`).
-  Reject mixes.
+- All shares must share one `identifier` (see Section 8.1 for why and how to
+  surface mismatches). Reject mixes.
+- All shares must be single-group (`groupCount = 1`). Reject multi-group.
 - The quorum K is the shares' common `memberThreshold`.
 - Deduplicate by `memberIndex`. You need at least K distinct member indices.
 
