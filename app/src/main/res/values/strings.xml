@@ -43,6 +43,9 @@
     <string name="about_interop_heading">Will other apps work?</string>
     <string name="about_interop_body">Your shards use SSKR, an open standard, so other SSKR-compatible tools can read and recombine them. But recombining recovers only the random key, not your secret - the encrypted envelope that holds the secret is ShardQuorum\'s own format, and other tools cannot open it. So for recovery that never depends on this app, keep the contents of the Recovery Kit stored alongside each shard.</string>
 
+    <string name="about_quantum_heading">Is my secret safe from quantum computers?</string>
+    <string name="about_quantum_body">Yes. Quantum computers threaten public-key cryptography - the kind used in web browsing and digital signatures. ShardQuorum uses none of it.\n\nThe splitting math, Shamir\'s Secret Sharing, is information-theoretically secure: fewer than a quorum of shards contain no information about the secret, so there is nothing for any computer - quantum or otherwise - to compute.\n\nThe recovery envelope is sealed with AES-256, a symmetric cipher. The best known quantum attack (Grover\'s algorithm) would at most halve its effective strength to 128 bits, which is still far beyond any foreseeable attack. So an adversary who copies your shards or envelope today, hoping to decrypt them later, gains nothing when quantum computers arrive.</string>
+
     <string name="about_back">Back</string>
 
     <string name="recover_title">Recover secret</string>
