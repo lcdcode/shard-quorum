@@ -64,6 +64,10 @@ class CreateSecretViewModel(
     var showCustomQuorum by mutableStateOf(false)
         private set
 
+    /** Which shard indices (1-based) have been saved or shared by the user. */
+    var savedShards by mutableStateOf<Set<Int>>(emptySet())
+        private set
+
     // Verify-before-distribute state. Only a SHA-256 fingerprint of the secret
     // is kept (not the secret) plus the envelope ciphertext, so the re-entered
     // shards can be proven to rebuild the exact original.
@@ -102,6 +106,11 @@ class CreateSecretViewModel(
         showCustomQuorum = !showCustomQuorum
     }
 
+    /** Records that shard [index] (1-based) has been saved or shared. */
+    fun markShardSaved(index: Int) {
+        savedShards = savedShards + index
+    }
+
     /**
      * Validates the form and produces the shard pages. Secret/KEK material is
      * zeroed before returning; only the rendered share/envelope strings remain.
@@ -137,6 +146,7 @@ class CreateSecretViewModel(
     /** Drops the generated shards (e.g. when navigating back to the form). */
     fun discardShards() {
         shards = null
+        savedShards = emptySet()
         phase = CreatePhase.FORM
     }
 
@@ -161,6 +171,7 @@ class CreateSecretViewModel(
         showCustomQuorum = false
         error = null
         shards = null
+        savedShards = emptySet()
         phase = CreatePhase.FORM
         clearVerifyCollection()
         verifyFingerprint = null

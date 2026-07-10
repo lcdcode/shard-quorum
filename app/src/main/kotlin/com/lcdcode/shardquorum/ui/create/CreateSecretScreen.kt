@@ -79,6 +79,7 @@ fun CreateSecretScreen(onExit: () -> Unit, viewModel: CreateSecretViewModel = vi
                 shards = viewModel.shards.orEmpty(),
                 onContinue = viewModel::startVerify,
                 onAbandon = exit,
+                viewModel = viewModel,
             )
             CreatePhase.VERIFY -> VerifyStep(
                 viewModel = viewModel,
@@ -271,7 +272,12 @@ private fun PresetSelector(viewModel: CreateSecretViewModel) {
  * leaving discards the shards (they are shown only once).
  */
 @Composable
-private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAbandon: () -> Unit) {
+private fun ShardViewer(
+    shards: List<ShardPage>,
+    onContinue: () -> Unit,
+    onAbandon: () -> Unit,
+    viewModel: CreateSecretViewModel,
+) {
     var index by rememberSaveable { mutableIntStateOf(0) }
     var showConfirm by rememberSaveable { mutableStateOf(false) }
     var showShareWarning by rememberSaveable { mutableStateOf(false) }
@@ -469,14 +475,17 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
         ShareOptionsDialog(
             onShareKit = {
                 showShareOptions = false
+                viewModel.markShardSaved(current.index)
                 shareKit()
             },
             onShareQr = {
                 showShareOptions = false
+                viewModel.markShardSaved(current.index)
                 shareQrImage()
             },
             onShareWords = {
                 showShareOptions = false
+                viewModel.markShardSaved(current.index)
                 shareWords()
             },
             onDismiss = { showShareOptions = false },
@@ -487,18 +496,21 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
         SaveOptionsDialog(
             onSaveKit = {
                 showSaveOptions = false
+                viewModel.markShardSaved(current.index)
                 saveStaged(::buildKit, { pendingZip = it }) {
                     saveZipLauncher.launch("$baseName-kit.zip")
                 }
             },
             onSaveQr = {
                 showSaveOptions = false
+                viewModel.markShardSaved(current.index)
                 saveStaged(::buildShardPng, { pendingPng = it }) {
                     savePngLauncher.launch("$baseName.png")
                 }
             },
             onSaveWords = {
                 showSaveOptions = false
+                viewModel.markShardSaved(current.index)
                 pendingText = CreateSecretViewModel.shareText(current)
                 saveTextLauncher.launch("$baseName.txt")
             },
@@ -523,6 +535,9 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
                 .fillMaxWidth(),
         )
 
+        val isCurrentSaved = current.index in viewModel.savedShards
+        val allSaved = viewModel.savedShards.size == shards.size
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -536,12 +551,22 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
             ) {
                 Text(stringResource(R.string.shard_nav_prev))
             }
-            OutlinedButton(
-                onClick = { if (index < shards.lastIndex) index++ },
-                enabled = index < shards.lastIndex,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text(stringResource(R.string.shard_nav_next))
+            if (isCurrentSaved && !allSaved) {
+                Button(
+                    onClick = { if (index < shards.lastIndex) index++ },
+                    enabled = index < shards.lastIndex,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(R.string.shard_nav_next))
+                }
+            } else {
+                OutlinedButton(
+                    onClick = { if (index < shards.lastIndex) index++ },
+                    enabled = index < shards.lastIndex,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(R.string.shard_nav_next))
+                }
             }
         }
 
@@ -552,30 +577,77 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
                 .padding(bottom = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            OutlinedButton(
-                onClick = { showSaveOptions = true },
-                modifier = Modifier.weight(1f),
-            ) {
-                Text(stringResource(R.string.shard_save))
-            }
-            OutlinedButton(
-                onClick = {
-                    if (shareWarningAcknowledged) showShareOptions = true else showShareWarning = true
-                },
-                modifier = Modifier.weight(1f),
-            ) {
-                Text(stringResource(R.string.shard_share))
+            if (!isCurrentSaved) {
+                Button(
+                    onClick = { showSaveOptions = true },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(R.string.shard_save))
+                }
+                Button(
+                    onClick = {
+                        if (shareWarningAcknowledged) showShareOptions = true
+                        else showShareWarning = true
+                    },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(R.string.shard_share))
+                }
+            } else {
+                OutlinedButton(
+                    onClick = { showSaveOptions = true },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(R.string.shard_save))
+                }
+                OutlinedButton(
+                    onClick = {
+                        if (shareWarningAcknowledged) showShareOptions = true
+                        else showShareWarning = true
+                    },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(R.string.shard_share))
+                }
             }
         }
 
-        Button(
-            onClick = onContinue,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 24.dp),
-        ) {
-            Text(stringResource(R.string.create_continue_verify))
+        if (isCurrentSaved) {
+            Text(
+                text = stringResource(
+                    R.string.shard_saved_progress,
+                    viewModel.savedShards.size,
+                    shards.size,
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+            )
+        }
+
+        if (allSaved) {
+            Button(
+                onClick = onContinue,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 24.dp),
+            ) {
+                Text(stringResource(R.string.create_continue_verify))
+            }
+        } else {
+            OutlinedButton(
+                onClick = onContinue,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 24.dp),
+            ) {
+                Text(stringResource(R.string.create_continue_verify))
+            }
         }
     }
 }
