@@ -39,6 +39,7 @@ jobs:
       uses: github/codeql-action/init@v3
       with:
         languages: ${{ matrix.language }}
+        auto-build: false
 
     - name: Build with Gradle
       run: ./gradlew build --no-daemon
