@@ -32,6 +32,9 @@ jobs:
         java-version: '21'
         distribution: 'temurin'
 
+    - name: Clean build artifacts
+      run: ./gradlew clean
+
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v3
       with:
