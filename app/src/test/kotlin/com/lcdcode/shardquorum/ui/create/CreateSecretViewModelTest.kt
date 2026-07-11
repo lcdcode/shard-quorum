@@ -320,4 +320,94 @@ class CreateSecretViewModelTest {
         assertEquals("Keep me", vm.name)
         assertEquals("abc", vm.secretInput)
     }
+    @Test
+    fun secretTooLongRejected() {
+        val vm = viewModel {
+            name = "Test"
+            secretInput = "a".repeat(CreateSecretViewModel.MAX_SECRET_LENGTH + 1)
+        }
+        vm.generate()
+        assertEquals(CreateError.SECRET_TOO_LONG, vm.error)
+        assertNull(vm.shards)
+    }
+
+    @Test
+    fun secretAtMaxLengthAccepted() {
+        val vm = viewModel {
+            name = "Test"
+            secretInput = "a".repeat(CreateSecretViewModel.MAX_SECRET_LENGTH)
+        }
+        vm.generate()
+        assertNull(vm.error)
+        assertNotNull(vm.shards)
+    }
+
+    @Test
+    fun secretByteCountMatchesUtf8EncodingForMultiByteInput() {
+        val vm = viewModel()
+        // ASCII, 2-byte (accented), 3-byte (CJK), and 4-byte (emoji, surrogate
+        // pair) characters must all count exactly as UTF-8 encodes them.
+        for (input in listOf("", "abc", "café", "秘密", "🔑key", "aé秘🔑")) {
+            vm.secretInput = input
+            assertEquals(input, input.toByteArray(Charsets.UTF_8).size, vm.secretByteCount)
+        }
+    }
+
+    @Test
+    fun secretLimitIsEnforcedInBytesNotCharacters() {
+        // 200 CJK characters = 600 UTF-8 bytes, over the 500-byte cap.
+        val vm = viewModel {
+            name = "Test"
+            secretInput = "秘".repeat(200)
+        }
+        vm.generate()
+        assertEquals(CreateError.SECRET_TOO_LONG, vm.error)
+    }
+
+    // --- Saved-shard tracking ---
+
+    @Test
+    fun markShardSavedAccumulatesIndices() {
+        val vm = viewModel {
+            name = "Test"
+            secretInput = "abc"
+        }
+        vm.generate()
+        vm.markShardSaved(1)
+        vm.markShardSaved(3)
+        vm.markShardSaved(1) // idempotent
+        assertEquals(setOf(1, 3), vm.savedShards)
+    }
+
+    @Test
+    fun generateClearsSavedShardsFromPreviousRun() {
+        val vm = viewModel {
+            name = "Test"
+            secretInput = "abc"
+        }
+        vm.generate()
+        vm.markShardSaved(1)
+        vm.markShardSaved(2)
+        // Regenerate without any intermediate reset: generate() itself must
+        // drop the previous run's saved indices.
+        vm.generate()
+        assertEquals(emptySet<Int>(), vm.savedShards)
+    }
+
+    @Test
+    fun discardShardsAndResetClearSavedShards() {
+        val vm = viewModel {
+            name = "Test"
+            secretInput = "abc"
+        }
+        vm.generate()
+        vm.markShardSaved(1)
+        vm.discardShards()
+        assertEquals(emptySet<Int>(), vm.savedShards)
+
+        vm.generate()
+        vm.markShardSaved(2)
+        vm.reset()
+        assertEquals(emptySet<Int>(), vm.savedShards)
+    }
 }

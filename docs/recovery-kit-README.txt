@@ -1,5 +1,5 @@
-ShardQuorum recovery kit
-========================
+ShardQuorum recovery kit: '{secret_name}' - Shard {index} of {count}
+============================================================================
 
 This package holds one ShardQuorum shard together with everything needed to
 rebuild the protected secret once enough shards are brought together. It is
@@ -7,9 +7,9 @@ designed to outlive the app: as long as this kit survives, the secret is
 recoverable, even if the ShardQuorum app no longer runs on any device.
 
 FILES
-  shard-*.png               This kit's shard and the recovery envelope, as QR
+  shard-{index}-of-{count}.png          This kit's shard and the recovery envelope, as QR
                             codes on one sheet.
-  shard-*.txt               The same shard as words you can type by hand, plus
+  shard-{index}-of-{count}.txt          The same shard as words you can type by hand, plus
                             the QR contents and the recovery envelope as text.
   ShardQuorum-recover.html  Offline recovery tool. Open in any web browser.
   RECOVERY-SPEC.md          Complete recovery specification (human- or LLM-readable).

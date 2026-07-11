@@ -8,6 +8,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -79,6 +80,8 @@ fun CreateSecretScreen(onExit: () -> Unit, viewModel: CreateSecretViewModel = vi
                 shards = viewModel.shards.orEmpty(),
                 onContinue = viewModel::startVerify,
                 onAbandon = exit,
+                savedShards = viewModel.savedShards,
+                onShardSaved = viewModel::markShardSaved,
             )
             CreatePhase.VERIFY -> VerifyStep(
                 viewModel = viewModel,
@@ -131,8 +134,25 @@ private fun ParamsForm(viewModel: CreateSecretViewModel) {
             onValueChange = { viewModel.secretInput = it },
             label = { Text(stringResource(R.string.create_secret_label_text)) },
             placeholder = { Text(stringResource(R.string.create_secret_placeholder)) },
-            supportingText = { Text(stringResource(R.string.create_secret_supporting)) },
-            isError = viewModel.error == CreateError.SECRET_REQUIRED,
+            supportingText = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = stringResource(R.string.create_secret_supporting),
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        "${viewModel.secretByteCount}/${CreateSecretViewModel.MAX_SECRET_LENGTH}",
+                        color = if (viewModel.secretByteCount > CreateSecretViewModel.MAX_SECRET_LENGTH)
+                            MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            isError = viewModel.error == CreateError.SECRET_REQUIRED
+                || viewModel.error == CreateError.SECRET_TOO_LONG,
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -146,7 +166,7 @@ private fun ParamsForm(viewModel: CreateSecretViewModel) {
 
         viewModel.error?.let {
             Text(
-                text = stringResource(it.messageRes()),
+                text = it.message(),
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodyMedium,
             )
@@ -254,7 +274,13 @@ private fun PresetSelector(viewModel: CreateSecretViewModel) {
  * leaving discards the shards (they are shown only once).
  */
 @Composable
-private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAbandon: () -> Unit) {
+private fun ShardViewer(
+    shards: List<ShardPage>,
+    onContinue: () -> Unit,
+    onAbandon: () -> Unit,
+    savedShards: Set<Int>,
+    onShardSaved: (Int) -> Unit,
+) {
     var index by rememberSaveable { mutableIntStateOf(0) }
     var showConfirm by rememberSaveable { mutableStateOf(false) }
     var showShareWarning by rememberSaveable { mutableStateOf(false) }
@@ -290,15 +316,20 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
     }
 
     // CreateDocument hands back a destination uri; we write the payload that was
-    // staged just before launching, then clear it.
+    // staged just before launching, then clear it. The shard index is staged
+    // alongside so the shard is marked saved only after its bytes actually land
+    // (cancelling the picker returns uri == null and marks nothing).
     var pendingPng by remember { mutableStateOf<ByteArray?>(null) }
     var pendingText by remember { mutableStateOf<String?>(null) }
     var pendingZip by remember { mutableStateOf<ByteArray?>(null) }
+    var pendingShardIndex by remember { mutableStateOf(0) }
     // Writes go through SAF, whose provider may be network-backed (a cloud
     // documents app), so every write runs on the IO dispatcher.
-    fun writeToUri(uri: Uri, bytes: ByteArray) {
+    fun writeToUri(uri: Uri, bytes: ByteArray, shardIndex: Int) {
         scope.launch(Dispatchers.IO) {
-            context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
+            val stream = context.contentResolver.openOutputStream(uri) ?: return@launch
+            stream.use { it.write(bytes) }
+            onShardSaved(shardIndex)
         }
     }
     val savePngLauncher = rememberLauncherForActivityResult(
@@ -306,21 +337,23 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
     ) { uri ->
         val bytes = pendingPng
         pendingPng = null
-        if (uri != null && bytes != null) writeToUri(uri, bytes)
+        if (uri != null && bytes != null) writeToUri(uri, bytes, pendingShardIndex)
     }
     val saveZipLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/zip"),
     ) { uri ->
         val bytes = pendingZip
         pendingZip = null
-        if (uri != null && bytes != null) writeToUri(uri, bytes)
+        if (uri != null && bytes != null) writeToUri(uri, bytes, pendingShardIndex)
     }
     val saveTextLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/plain"),
     ) { uri ->
         val text = pendingText
         pendingText = null
-        if (uri != null && text != null) writeToUri(uri, text.toByteArray(Charsets.UTF_8))
+        if (uri != null && text != null) {
+            writeToUri(uri, text.toByteArray(Charsets.UTF_8), pendingShardIndex)
+        }
     }
 
     val baseName = "shardquorum-shard-${current.index}-of-${current.count}"
@@ -351,6 +384,7 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
         shardText = CreateSecretViewModel.shareText(current),
         index = current.index,
         count = current.count,
+        secretName = current.secretName,
     )
 
     fun chooserFor(send: Intent) {
@@ -359,6 +393,9 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
         )
     }
 
+    // Sharing has no completion signal (the chooser is fire-and-forget), so
+    // launching it is the best available proxy for "this shard left the app";
+    // shards shared this way are marked at launch.
     fun shareWords() {
         chooserFor(
             Intent(Intent.ACTION_SEND).apply {
@@ -366,6 +403,7 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
                 putExtra(Intent.EXTRA_TEXT, CreateSecretViewModel.shareText(current))
             },
         )
+        onShardSaved(current.index)
     }
 
     // Rendering the QR sheet (bitmap draw + PNG compress) takes long enough to
@@ -398,6 +436,8 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     },
                 )
+                // Same fire-and-forget caveat as shareWords: mark at launch.
+                onShardSaved(current.index)
             } finally {
                 exporting = false
             }
@@ -470,18 +510,21 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
         SaveOptionsDialog(
             onSaveKit = {
                 showSaveOptions = false
+                pendingShardIndex = current.index
                 saveStaged(::buildKit, { pendingZip = it }) {
                     saveZipLauncher.launch("$baseName-kit.zip")
                 }
             },
             onSaveQr = {
                 showSaveOptions = false
+                pendingShardIndex = current.index
                 saveStaged(::buildShardPng, { pendingPng = it }) {
                     savePngLauncher.launch("$baseName.png")
                 }
             },
             onSaveWords = {
                 showSaveOptions = false
+                pendingShardIndex = current.index
                 pendingText = CreateSecretViewModel.shareText(current)
                 saveTextLauncher.launch("$baseName.txt")
             },
@@ -506,6 +549,9 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
                 .fillMaxWidth(),
         )
 
+        val isCurrentSaved = current.index in savedShards
+        val allSaved = savedShards.size == shards.size
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -519,7 +565,8 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
             ) {
                 Text(stringResource(R.string.shard_nav_prev))
             }
-            OutlinedButton(
+            EmphasisButton(
+                filled = isCurrentSaved && !allSaved,
                 onClick = { if (index < shards.lastIndex) index++ },
                 enabled = index < shards.lastIndex,
                 modifier = Modifier.weight(1f),
@@ -535,15 +582,18 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
                 .padding(bottom = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            OutlinedButton(
+            EmphasisButton(
+                filled = !isCurrentSaved,
                 onClick = { showSaveOptions = true },
                 modifier = Modifier.weight(1f),
             ) {
                 Text(stringResource(R.string.shard_save))
             }
-            OutlinedButton(
+            EmphasisButton(
+                filled = !isCurrentSaved,
                 onClick = {
-                    if (shareWarningAcknowledged) showShareOptions = true else showShareWarning = true
+                    if (shareWarningAcknowledged) showShareOptions = true
+                    else showShareWarning = true
                 },
                 modifier = Modifier.weight(1f),
             ) {
@@ -551,7 +601,24 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
             }
         }
 
-        Button(
+        if (isCurrentSaved) {
+            Text(
+                text = stringResource(
+                    R.string.shard_saved_progress,
+                    savedShards.size,
+                    shards.size,
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+            )
+        }
+
+        EmphasisButton(
+            filled = allSaved,
             onClick = onContinue,
             modifier = Modifier
                 .fillMaxWidth()
@@ -560,6 +627,25 @@ private fun ShardViewer(shards: List<ShardPage>, onContinue: () -> Unit, onAband
         ) {
             Text(stringResource(R.string.create_continue_verify))
         }
+    }
+}
+
+/**
+ * Button whose emphasis tracks a state: filled (primary) when [filled],
+ * outlined otherwise, with identical behavior in both forms.
+ */
+@Composable
+private fun EmphasisButton(
+    filled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    content: @Composable RowScope.() -> Unit,
+) {
+    if (filled) {
+        Button(onClick = onClick, modifier = modifier, enabled = enabled, content = content)
+    } else {
+        OutlinedButton(onClick = onClick, modifier = modifier, enabled = enabled, content = content)
     }
 }
 
@@ -824,7 +910,11 @@ private fun ShardPageContent(shard: ShardPage, modifier: Modifier = Modifier) {
     }
 }
 
-private fun CreateError.messageRes(): Int = when (this) {
-    CreateError.NAME_REQUIRED -> R.string.create_error_name_required
-    CreateError.SECRET_REQUIRED -> R.string.create_error_secret_required
+@Composable
+private fun CreateError.message(): String = when (this) {
+    CreateError.NAME_REQUIRED -> stringResource(R.string.create_error_name_required)
+    CreateError.SECRET_REQUIRED -> stringResource(R.string.create_error_secret_required)
+    CreateError.SECRET_TOO_LONG -> stringResource(
+        R.string.create_error_secret_too_long, CreateSecretViewModel.MAX_SECRET_LENGTH,
+    )
 }

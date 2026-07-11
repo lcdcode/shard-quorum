@@ -59,10 +59,15 @@ object RecoveryKit {
             assets.open("$ASSET_DIR/$name").use { it.readBytes() }
         }
 
+    // README title when the caller has no name for the secret; keeps the
+    // template's {secret_name} placeholder from reaching a recipient.
+    private const val UNNAMED_SECRET_LABEL = "unnamed secret"
+
     /**
      * Builds a complete recovery-kit ZIP for one recipient: the bundled
      * artifacts plus this recipient's shard, as both a QR-sheet PNG and a
-     * hand-typeable text file.
+     * hand-typeable text file. The bundled README is personalized with
+     * [secretName] (the user's label) and this shard's [index]/[count].
      */
     fun buildKit(
         assets: AssetManager,
@@ -70,10 +75,32 @@ object RecoveryKit {
         shardText: String,
         index: Int,
         count: Int,
+        secretName: String,
     ): ByteArray {
         val entries = assetEntries(assets).toMutableMap()
         entries[shardPngName(index, count)] = shardPng
         entries[shardTextName(index, count)] = shardText.toByteArray(Charsets.UTF_8)
+        entries["README.txt"]?.let { readme ->
+            entries["README.txt"] = personalizeReadme(
+                readme.toString(Charsets.UTF_8), secretName, index, count,
+            ).toByteArray(Charsets.UTF_8)
+        }
         return ByteArrayOutputStream().also { writeZip(entries, it) }.toByteArray()
     }
+
+    /**
+     * Fills the README template's {index}/{count}/{secret_name} placeholders.
+     * {secret_name} is replaced last so a name that itself contains a
+     * placeholder token is never substituted into; a blank name gets a neutral
+     * label instead of leaking the raw placeholder.
+     */
+    internal fun personalizeReadme(
+        template: String,
+        secretName: String,
+        index: Int,
+        count: Int,
+    ): String = template
+        .replace("{index}", index.toString())
+        .replace("{count}", count.toString())
+        .replace("{secret_name}", secretName.ifBlank { UNNAMED_SECRET_LABEL })
 }

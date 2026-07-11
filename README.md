@@ -7,6 +7,8 @@ shards, every shard kit contains one shard plus everything needed to recover the
 
 Use cases: disaster-proof backup of a password-manager master passphrase, wallet seeds, LUKS keys, or another app's backup PIN; estate planning (e.g. 2-of-3 among family and a lawyer). Distribute shares physically (home, fireproof box, family, bank box); 3 out of 5 of which, for example, reunite the secret.
 
+**Icon designed by Kenneth J Wagnon.**
+
 ## AI Declaration
 
 Written with assistance from Claude Code with Opus 4.8 and Fable 5, among others.

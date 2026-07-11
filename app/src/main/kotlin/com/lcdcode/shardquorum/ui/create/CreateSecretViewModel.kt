@@ -23,6 +23,7 @@ import kotlinx.coroutines.withContext
 enum class CreateError {
     NAME_REQUIRED,
     SECRET_REQUIRED,
+    SECRET_TOO_LONG,
 }
 
 /** Stage of the create wizard. */
@@ -49,6 +50,18 @@ class CreateSecretViewModel(
 ) : ViewModel() {
     var name by mutableStateOf("")
     var secretInput by mutableStateOf("")
+    // UTF-8 length of the secret, counted per char so no transient plaintext
+    // copy is allocated on every recomposition. Also the single definition of
+    // the length rule generate() enforces.
+    val secretByteCount: Int
+        get() = secretInput.sumOf { c ->
+            when {
+                c.code < 0x80 -> 1
+                c.code < 0x800 -> 2
+                c.isSurrogate() -> 2 // each half of a pair; the pair totals 4
+                else -> 3
+            }.toInt()
+        }
     var threshold by mutableStateOf(DEFAULT_THRESHOLD)
         private set
     var shareCount by mutableStateOf(DEFAULT_SHARE_COUNT)
@@ -60,6 +73,10 @@ class CreateSecretViewModel(
     var phase by mutableStateOf(CreatePhase.FORM)
         private set
     var showCustomQuorum by mutableStateOf(false)
+        private set
+
+    /** Which shard indices (1-based) have been saved or shared by the user. */
+    var savedShards by mutableStateOf<Set<Int>>(emptySet())
         private set
 
     // Verify-before-distribute state. Only a SHA-256 fingerprint of the secret
@@ -100,6 +117,11 @@ class CreateSecretViewModel(
         showCustomQuorum = !showCustomQuorum
     }
 
+    /** Records that shard [index] (1-based) has been saved or shared. */
+    fun markShardSaved(index: Int) {
+        savedShards = savedShards + index
+    }
+
     /**
      * Validates the form and produces the shard pages. Secret/KEK material is
      * zeroed before returning; only the rendered share/envelope strings remain.
@@ -116,12 +138,17 @@ class CreateSecretViewModel(
             error = CreateError.SECRET_REQUIRED
             return
         }
+        if (secretByteCount > MAX_SECRET_LENGTH) {
+            error = CreateError.SECRET_TOO_LONG
+            return
+        }
         val secret = secretInput.toByteArray(Charsets.UTF_8)
         try {
             val protected = KekEnvelope.protect(threshold, shareCount, secret)
             armVerification(secret, protected.envelope, protected.shares.first())
             val envelopeUr = Ur.toEnvelopeUr(protected.envelope).uppercase()
             shards = toPages(protected.shares, envelopeUr)
+            savedShards = emptySet()
             phase = CreatePhase.RECORD
         } finally {
             secret.fill(0)
@@ -131,6 +158,7 @@ class CreateSecretViewModel(
     /** Drops the generated shards (e.g. when navigating back to the form). */
     fun discardShards() {
         shards = null
+        savedShards = emptySet()
         phase = CreatePhase.FORM
     }
 
@@ -155,6 +183,7 @@ class CreateSecretViewModel(
         showCustomQuorum = false
         error = null
         shards = null
+        savedShards = emptySet()
         phase = CreatePhase.FORM
         clearVerifyCollection()
         verifyFingerprint = null
@@ -284,6 +313,9 @@ class CreateSecretViewModel(
 
         /** Cap on the secret name: it is printed on every shard, and bounds PNG width. */
         const val MAX_NAME_LENGTH = 24
+
+        /** Maximum secret length in UTF-8 bytes. Keeps the envelope QR scannable. */
+        const val MAX_SECRET_LENGTH = 500
 
         private fun sha256(data: ByteArray): ByteArray =
             MessageDigest.getInstance("SHA-256").digest(data)
