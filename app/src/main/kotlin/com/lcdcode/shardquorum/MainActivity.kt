@@ -23,10 +23,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // Key material will be rendered on screen; block screenshots, the
         // recents thumbnail, and non-secure displays for the whole activity.
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_SECURE,
-            WindowManager.LayoutParams.FLAG_SECURE,
-        )
+        // Debug builds allow capture for docs/store screenshots; release never does.
+        if (!BuildConfig.DEBUG) {
+            window.setFlags(
+                WindowManager.LayoutParams.FLAG_SECURE,
+                WindowManager.LayoutParams.FLAG_SECURE,
+            )
+        }
 
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val onboardingDone = prefs.getBoolean(KEY_ONBOARDING_DONE, false)
