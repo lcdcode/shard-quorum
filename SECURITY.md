@@ -13,7 +13,7 @@ Versions of the application that are currently eligible for security patches:
 
 **Please do not report security vulnerabilities through public GitHub issues, discussions, or pull requests.**
 
-You may report suspected security vulnerabilities via the [Security and quality](https://github.com/lcdcode/shard-quorum/security) page directly.
+You may report suspected security vulnerabilities via the "Report a vulnerability" button above on this page ([Security and quality](https://github.com/lcdcode/shard-quorum/security)).
 
 When reporting a vulnerability, please include:
 
