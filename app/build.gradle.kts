@@ -12,6 +12,7 @@ import org.gradle.api.tasks.TaskAction
 import org.gradle.kotlin.dsl.register
 import org.w3c.dom.Element
 import java.io.File
+import java.util.Properties
 import javax.xml.parsers.DocumentBuilderFactory
 
 plugins {
@@ -29,15 +30,39 @@ android {
         minSdk = 29
         targetSdk = 34
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "0.1.2"
         resourceConfigurations.add("en")
         base.archivesName = "shardquorum-$versionName"
+    }
+
+    val releaseStoreFile = findProperty("SHARDQUORUM_STORE_FILE") as String?
+    val releaseStorePassword = findProperty("SHARDQUORUM_STORE_PASSWORD") as String?
+    val releaseKeyAlias = findProperty("SHARDQUORUM_KEY_ALIAS") as String?
+    val releaseKeyPassword = findProperty("SHARDQUORUM_KEY_PASSWORD") as String?
+    val hasReleaseSigning = listOf(
+        releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword,
+    ).all { !it.isNullOrBlank() }
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(releaseStoreFile!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
     }
 
     buildTypes {
         release {
             // Keep F-Droid reproducible builds possible: no live git HEAD baked in.
             vcsInfo { include = false }
+
+            // Sign locally when SHARDQUORUM_* signing properties are present.
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
 
             isMinifyEnabled = true
             isShrinkResources = false
