@@ -31,7 +31,7 @@ const embedded = vecMatch[1].trim();
 check('embedded vectors match docs/recovery-vectors.json', embedded === docsVectors);
 
 // Extract the core script: the bare <script> block defining ShardQuorumCore.
-const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(function (m) { return m[1]; });
+const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/gi)].map(function (m) { return m[1]; });
 const coreSrc = scripts.find(function (s) { return s.indexOf('ShardQuorumCore') !== -1; });
 check('inlined core script present', !!coreSrc);
 
