@@ -617,15 +617,16 @@ private fun ShardViewer(
             )
         }
 
-        EmphasisButton(
-            filled = allSaved,
-            onClick = onContinue,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 24.dp),
-        ) {
-            Text(stringResource(R.string.create_continue_verify))
+        if (allSaved) {
+            Button(
+                onClick = onContinue,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 24.dp),
+            ) {
+                Text(stringResource(R.string.create_continue_verify))
+            }
         }
     }
 }
