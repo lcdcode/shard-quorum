@@ -75,7 +75,7 @@ class CreateSecretViewModel(
     var showCustomQuorum by mutableStateOf(false)
         private set
 
-    /** Which shard indices (1-based) have been saved or shared by the user. */
+    /** Which shard indices (1-based) have been saved by the user. */
     var savedShards by mutableStateOf<Set<Int>>(emptySet())
         private set
 
@@ -117,7 +117,7 @@ class CreateSecretViewModel(
         showCustomQuorum = !showCustomQuorum
     }
 
-    /** Records that shard [index] (1-based) has been saved or shared. */
+    /** Records that shard [index] (1-based) has been saved. */
     fun markShardSaved(index: Int) {
         savedShards = savedShards + index
     }
@@ -321,7 +321,7 @@ class CreateSecretViewModel(
             MessageDigest.getInstance("SHA-256").digest(data)
 
         /**
-         * Plain-text rendering of one shard for sharing/saving. The first line
+         * Plain-text rendering of one shard for saving. The first line
          * is the secret's name so multiple shards can be told apart. Words come
          * before the UR string to avoid confusing the two; the UR is lowercased
          * back to canonical form. The recovery envelope is appended.

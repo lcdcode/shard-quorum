@@ -1,6 +1,5 @@
 package com.lcdcode.shardquorum.ui.create
 
-import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -29,7 +28,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -45,10 +43,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.core.content.FileProvider
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lcdcode.shardquorum.R
 import com.lcdcode.shardquorum.export.RecoveryKit
@@ -56,7 +50,6 @@ import com.lcdcode.shardquorum.qr.QrPng
 import com.lcdcode.shardquorum.qr.ZxingQrDecoder
 import com.lcdcode.shardquorum.ui.QrImage
 import com.lcdcode.shardquorum.ui.components.ShardInputPanel
-import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -283,37 +276,12 @@ private fun ShardViewer(
 ) {
     var index by rememberSaveable { mutableIntStateOf(0) }
     var showConfirm by rememberSaveable { mutableStateOf(false) }
-    var showShareWarning by rememberSaveable { mutableStateOf(false) }
-    var shareWarningAcknowledged by rememberSaveable { mutableStateOf(false) }
-    var showShareOptions by rememberSaveable { mutableStateOf(false) }
     var showSaveOptions by rememberSaveable { mutableStateOf(false) }
     val current = shards[index]
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
-    // Guards the async share/save builds against a double-tap launching two.
+    // Guards the async save builds against a double-tap launching two.
     var exporting by remember { mutableStateOf(false) }
-
-    // Staged shard PNGs (for the share intent) hold key material, so they must
-    // not linger on disk. We purge them once we regain the foreground - by then
-    // the recipient's read window via the granted URI has passed - and again
-    // when this screen is left, as a backstop.
-    val sharedDir = remember(context) { File(context.cacheDir, "shared") }
-    val purgeSharedDir = { sharedDir.listFiles()?.forEach { it.delete() }; Unit }
-    var pendingShareCleanup by remember { mutableStateOf(false) }
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME && pendingShareCleanup) {
-                purgeSharedDir()
-                pendingShareCleanup = false
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-            purgeSharedDir()
-        }
-    }
 
     // CreateDocument hands back a destination uri; we write the payload that was
     // staged just before launching, then clear it. The shard index is staged
@@ -359,7 +327,7 @@ private fun ShardViewer(
     val baseName = "shardquorum-shard-${current.index}-of-${current.count}"
 
     // The shard QR sheet: the shard code plus the recovery envelope code, so a
-    // saved or shared image always carries everything.
+    // saved image always carries everything.
     fun buildShardPng(): ByteArray {
         val sections = buildList {
             add(
@@ -387,71 +355,9 @@ private fun ShardViewer(
         secretName = current.secretName,
     )
 
-    fun chooserFor(send: Intent) {
-        context.startActivity(
-            Intent.createChooser(send, context.getString(R.string.shard_share_chooser)),
-        )
-    }
-
-    // Sharing has no completion signal (the chooser is fire-and-forget), so
-    // launching it is the best available proxy for "this shard left the app";
-    // shards shared this way are marked at launch.
-    fun shareWords() {
-        chooserFor(
-            Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_TEXT, CreateSecretViewModel.shareText(current))
-            },
-        )
-        onShardSaved(current.index)
-    }
-
     // Rendering the QR sheet (bitmap draw + PNG compress) takes long enough to
-    // drop frames, so share/save payloads are built on Default. Sharing then
-    // stages the file to cache on IO before the chooser is launched from the
-    // main thread; saves stage in memory instead (see saveStaged).
-    fun shareStaged(fileName: String, mimeType: String, buildPayload: () -> ByteArray) {
-        if (exporting) return
-        exporting = true
-        scope.launch {
-            try {
-                val payload = withContext(Dispatchers.Default) { buildPayload() }
-                // Stage into cache/shared, keeping only the current shard. The
-                // file is purged when we return to the foreground and when this
-                // screen is left (see the DisposableEffect above), so it does
-                // not outlive the share.
-                val uri = withContext(Dispatchers.IO) {
-                    sharedDir.mkdirs()
-                    purgeSharedDir()
-                    val file = File(sharedDir, fileName).apply { writeBytes(payload) }
-                    FileProvider.getUriForFile(
-                        context, "${context.packageName}.fileprovider", file,
-                    )
-                }
-                pendingShareCleanup = true
-                chooserFor(
-                    Intent(Intent.ACTION_SEND).apply {
-                        type = mimeType
-                        putExtra(Intent.EXTRA_STREAM, uri)
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    },
-                )
-                // Same fire-and-forget caveat as shareWords: mark at launch.
-                onShardSaved(current.index)
-            } finally {
-                exporting = false
-            }
-        }
-    }
-
-    fun shareQrImage() = shareStaged("$baseName.png", "image/png", ::buildShardPng)
-
-    // The kit carries the shard (key material), so it follows the same
-    // transient-staging discipline as shareQrImage.
-    fun shareKit() = shareStaged("$baseName-kit.zip", "application/zip", ::buildKit)
-
-    // Builds the payload off the main thread, then hands the SAF picker its
-    // result via the pending* slot the launcher callback consumes.
+    // drop frames, so save payloads are built on Default, then handed to the SAF
+    // picker via the pending* slot the launcher callback consumes.
     fun saveStaged(build: () -> ByteArray, stage: (ByteArray) -> Unit, launchPicker: () -> Unit) {
         if (exporting) return
         exporting = true
@@ -474,35 +380,6 @@ private fun ShardViewer(
                 onAbandon()
             },
             onDismiss = { showConfirm = false },
-        )
-    }
-
-    if (showShareWarning) {
-        ShareWarningDialog(
-            onConfirm = {
-                showShareWarning = false
-                shareWarningAcknowledged = true
-                showShareOptions = true
-            },
-            onDismiss = { showShareWarning = false },
-        )
-    }
-
-    if (showShareOptions) {
-        ShareOptionsDialog(
-            onShareKit = {
-                showShareOptions = false
-                shareKit()
-            },
-            onShareQr = {
-                showShareOptions = false
-                shareQrImage()
-            },
-            onShareWords = {
-                showShareOptions = false
-                shareWords()
-            },
-            onDismiss = { showShareOptions = false },
         )
     }
 
@@ -552,6 +429,22 @@ private fun ShardViewer(
         val isCurrentSaved = current.index in savedShards
         val allSaved = savedShards.size == shards.size
 
+        if (isCurrentSaved) {
+            Text(
+                text = stringResource(
+                    R.string.shard_saved_progress,
+                    savedShards.size,
+                    shards.size,
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+            )
+        }
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -575,57 +468,27 @@ private fun ShardViewer(
             }
         }
 
-        Row(
+        EmphasisButton(
+            filled = !isCurrentSaved,
+            onClick = { showSaveOptions = true },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            EmphasisButton(
-                filled = !isCurrentSaved,
-                onClick = { showSaveOptions = true },
-                modifier = Modifier.weight(1f),
-            ) {
-                Text(stringResource(R.string.shard_save))
-            }
-            EmphasisButton(
-                filled = !isCurrentSaved,
-                onClick = {
-                    if (shareWarningAcknowledged) showShareOptions = true
-                    else showShareWarning = true
-                },
-                modifier = Modifier.weight(1f),
-            ) {
-                Text(stringResource(R.string.shard_share))
-            }
+            Text(stringResource(R.string.shard_save))
         }
 
-        if (isCurrentSaved) {
-            Text(
-                text = stringResource(
-                    R.string.shard_saved_progress,
-                    savedShards.size,
-                    shards.size,
-                ),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
+        if (allSaved) {
+            Button(
+                onClick = onContinue,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-            )
-        }
-
-        EmphasisButton(
-            filled = allSaved,
-            onClick = onContinue,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 24.dp),
-        ) {
-            Text(stringResource(R.string.create_continue_verify))
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 24.dp),
+            ) {
+                Text(stringResource(R.string.create_continue_verify))
+            }
         }
     }
 }
@@ -681,62 +544,6 @@ private fun SaveOptionsDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.shard_save_cancel))
-            }
-        },
-    )
-}
-
-@Composable
-private fun ShareOptionsDialog(
-    onShareKit: () -> Unit,
-    onShareQr: () -> Unit,
-    onShareWords: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.shard_share_title)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onShareKit, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.shard_share_kit))
-                }
-                Text(
-                    text = stringResource(R.string.shard_share_kit_subtitle),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                HorizontalDivider()
-                OutlinedButton(onClick = onShareQr, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.shard_share_qr))
-                }
-                OutlinedButton(onClick = onShareWords, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.shard_share_words))
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.shard_share_cancel))
-            }
-        },
-    )
-}
-
-@Composable
-private fun ShareWarningDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.shard_share_warning_title)) },
-        text = { Text(stringResource(R.string.shard_share_warning_message)) },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(stringResource(R.string.shard_share_warning_continue))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.shard_share_warning_cancel))
             }
         },
     )
