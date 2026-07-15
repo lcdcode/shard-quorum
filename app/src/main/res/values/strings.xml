@@ -51,6 +51,7 @@
     <string name="recover_title">Recover secret</string>
     <string name="recover_progress_empty">Add your first shard to begin.</string>
     <string name="recover_progress">Collected %1$d of %2$d shards needed</string>
+    <string name="recover_shard_imported">Shard imported</string>
     <string name="recover_shard_chip">Shard %1$d (tap to remove)</string>
     <string name="recover_envelope_added">Recovery envelope added</string>
     <string name="recover_clear_envelope">Remove</string>
