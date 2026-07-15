@@ -28,7 +28,7 @@
   .banner { padding: 10px 12px; border-radius: 6px; margin: 12px 0; font-size: 0.9rem;
             border: 1px solid #8884; }
   .banner.warn { border-color: #c93; } .banner.ok { border-color: #2a7; }
-  details { margin-top: 24px; } summary { cursor: pointer; font-weight: 600; }
+  details { margin-top: 24px; } summary { cursor: pointer; font-weight: 600; color: blue; }
   details p, details li { font-size: 0.92rem; }
   code { font-family: ui-monospace, monospace; }
 </style>
@@ -60,17 +60,44 @@ Either the printed words (e.g. tuna next keep ...) or its ur:sskr/... string."><
 
   <details>
     <summary>How to use this, and how it works</summary>
-    <p>Enter at least the quorum (K) of your shards, one per line, as either the printed
-       ByteWords or the <code>ur:sskr/</code> string. Also paste the <code>ur:sq-env/</code>
-       recovery envelope stored with your shards. Press Recover.</p>
-    <p>This file is self-contained: all logic runs on your device, and it never makes a
-       network request. For a real recovery, disconnect from networks first, and check this
-       file is authentic: if it came with a <code>MANIFEST.txt</code> and a stored ROOT
-       value, verify those (see the spec); otherwise compare its checksum
-       (e.g. <code>sha256sum</code>) across independently stored kits before trusting it.</p>
-    <p>The algorithm is specified in full in <code>docs/RECOVERY-SPEC.md</code>. This tool is
-       one implementation of it; the specification plus its test vectors are the root artifact,
-       so the secret stays recoverable even if this file is lost.</p>
+
+    <p><strong>You need two things:</strong></p>
+    <ol>
+      <li>Enough shards from the same set. Look at any shard text file
+          (<code>shard-*.txt</code>) — the third line tells you how many
+          you need, e.g. <strong>"Any 3 of 5 of these shards"</strong>.</li>
+      <li>The <strong>recovery envelope</strong> (<code>ur:sq-env/...</code>).
+          This is included with every shard — it's the last line of every
+          <code>shard-*.txt</code> file and appears on every shard QR
+          sheet.</li>
+    </ol>
+
+    <p><strong>To recover your secret:</strong></p>
+    <ol>
+      <li>Open a shard text file (<code>shard-*.txt</code>) from each kit
+          you have. Paste each shard on its own line in the
+          <strong>Shards</strong> box above. A shard can be the printed
+          word list (e.g. <code>tuna next keep ...</code>) or the
+          <code>ur:sskr/...</code> string — either works.</li>
+      <li>Paste the recovery envelope (the <code>ur:sq-env/...</code> line)
+          into the <strong>Recovery envelope</strong> field.</li>
+      <li>Press <strong>Recover secret</strong>.</li>
+    </ol>
+
+    <p>Your secret appears in the output area. If recovery fails, the tool
+       tells you why — not enough shards, a mistyped word, or shards from
+       different secrets.</p>
+
+    <p><strong>How it works:</strong> This is a single, self-contained HTML
+       file. All computation runs on your device and it never makes a
+       network request. You can (and should) disconnect from the internet
+       before using it.</p>
+
+    <p>The algorithm behind this tool is Shamir's Secret Sharing. It is
+       described in full in <code>RECOVERY-SPEC.md</code>, which ships
+       alongside this file in every recovery kit. This tool includes
+       built-in test vectors that prove it works correctly — run them with
+       the <strong>Run self-test</strong> button above.</p>
   </details>
 
 <script id="sq-vectors" type="application/json">__VECTORS_JSON__</script>
