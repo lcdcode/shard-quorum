@@ -4,6 +4,11 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
@@ -28,6 +34,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -51,6 +58,7 @@ import com.lcdcode.shardquorum.qr.ZxingQrDecoder
 import com.lcdcode.shardquorum.ui.QrImage
 import com.lcdcode.shardquorum.ui.components.ShardInputPanel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -612,11 +620,23 @@ private fun VerifyStep(
             style = MaterialTheme.typography.bodyMedium,
         )
 
+        val verifyCount = viewModel.verifyShares.size
+        var showVerifySuccess by remember { mutableStateOf(false) }
+        var prevVerifyCount by remember { mutableIntStateOf(0) }
+        LaunchedEffect(verifyCount) {
+            if (verifyCount > prevVerifyCount) {
+                showVerifySuccess = true
+                delay(2000)
+                showVerifySuccess = false
+            }
+            prevVerifyCount = verifyCount
+        }
+
         when (viewModel.verifyState) {
             VerifyState.COLLECTING -> Text(
                 text = stringResource(
                     R.string.verify_progress,
-                    viewModel.verifyShares.size,
+                    verifyCount,
                     viewModel.threshold,
                 ),
                 style = MaterialTheme.typography.bodyLarge,
@@ -644,6 +664,24 @@ private fun VerifyStep(
                     text = stringResource(it.messageRes()),
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+
+        AnimatedVisibility(
+            visible = showVerifySuccess,
+            enter = fadeIn() + slideInVertically { it },
+            exit = fadeOut() + slideOutVertically { it },
+        ) {
+            Surface(
+                color = MaterialTheme.colorScheme.primaryContainer,
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = stringResource(R.string.recover_shard_imported),
+                    modifier = Modifier.padding(12.dp),
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             }
         }
