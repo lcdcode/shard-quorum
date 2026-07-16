@@ -83,7 +83,8 @@
     <string name="verify_title">Verify your shards</string>
     <string name="verify_instructions">Re-enter any %1$d shards the way recipients will - scan a QR, type the words, or import a file - to prove they rebuild this secret before you distribute them.</string>
     <string name="verify_progress">Re-entered %1$d of %2$d needed</string>
-    <string name="verify_ok">Verified - these shards rebuild your secret. Now you can open the folder where you saved them and share them. Send each one differently, or download and store them in different places with different people. Read \'How it works\' for more information.</string>
+    <string name="verify_ok_title">Verified - these shards rebuild your secret.</string>
+    <string name="verify_ok_message">Now you can open the folder where you saved them and share them. Send each one differently, or download and store them in different places with different people. Read \'How it works\' for more information.</string>
     <string name="verify_mismatch">These shards do NOT rebuild the secret. Re-check what you saved, then try again.</string>
     <string name="verify_error_different_split">That shard is from a different secret (different split identifier). Use only shards generated together.</string>
     <string name="verify_finish">Finish</string>

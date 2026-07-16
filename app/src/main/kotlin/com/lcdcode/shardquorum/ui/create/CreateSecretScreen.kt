@@ -606,6 +606,26 @@ private fun VerifyStep(
         )
     }
 
+    var showVerifiedDialog by remember { mutableStateOf(false) }
+    LaunchedEffect(viewModel.verifyState) {
+        if (viewModel.verifyState == VerifyState.VERIFIED) {
+            showVerifiedDialog = true
+        }
+    }
+
+    if (showVerifiedDialog) {
+        AlertDialog(
+            onDismissRequest = { showVerifiedDialog = false },
+            title = { Text(stringResource(R.string.verify_ok_title)) },
+            text = { Text(stringResource(R.string.verify_ok_message)) },
+            confirmButton = {
+                Button(onClick = { showVerifiedDialog = false }) {
+                    Text(stringResource(R.string.verify_finish))
+                }
+            },
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -643,11 +663,7 @@ private fun VerifyStep(
                 ),
                 style = MaterialTheme.typography.bodyLarge,
             )
-            VerifyState.VERIFIED -> Text(
-                text = stringResource(R.string.verify_ok),
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.titleMedium,
-            )
+            VerifyState.VERIFIED -> { /* dialog handles this */ }
             VerifyState.MISMATCH -> Text(
                 text = stringResource(R.string.verify_mismatch),
                 color = MaterialTheme.colorScheme.error,
