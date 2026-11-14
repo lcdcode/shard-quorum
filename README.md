@@ -1,4 +1,4 @@
-<img src="https://github.com/lcdcode/shard-quorum/blob/main/fastlane/metadata/android/en-US/images/icon.png" alt="Logo comprised of a QR code split into colorful shards" width="300" height="300">
+<img src="fastlane/metadata/android/en-US/images/icon.png" alt="Logo comprised of a QR code split into colorful shards" width="300" height="300">
 
 **Icon designed by Kenneth J Wagnon.**
 
