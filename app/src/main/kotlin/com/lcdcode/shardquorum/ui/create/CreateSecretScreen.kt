@@ -10,11 +10,13 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
@@ -604,6 +606,26 @@ private fun VerifyStep(
         )
     }
 
+    var showVerifiedDialog by remember { mutableStateOf(false) }
+    LaunchedEffect(viewModel.verifyState) {
+        if (viewModel.verifyState == VerifyState.VERIFIED) {
+            showVerifiedDialog = true
+        }
+    }
+
+    if (showVerifiedDialog) {
+        AlertDialog(
+            onDismissRequest = { showVerifiedDialog = false },
+            title = { Text(stringResource(R.string.verify_ok_title)) },
+            text = { Text(stringResource(R.string.verify_ok_message)) },
+            confirmButton = {
+                Button(onClick = { showVerifiedDialog = false }) {
+                    Text(stringResource(R.string.verify_finish))
+                }
+            },
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -641,11 +663,7 @@ private fun VerifyStep(
                 ),
                 style = MaterialTheme.typography.bodyLarge,
             )
-            VerifyState.VERIFIED -> Text(
-                text = stringResource(R.string.verify_ok),
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.titleMedium,
-            )
+            VerifyState.VERIFIED -> { /* dialog handles this */ }
             VerifyState.MISMATCH -> Text(
                 text = stringResource(R.string.verify_mismatch),
                 color = MaterialTheme.colorScheme.error,
@@ -668,21 +686,27 @@ private fun VerifyStep(
             }
         }
 
-        AnimatedVisibility(
-            visible = showVerifySuccess,
-            enter = fadeIn() + slideInVertically { it },
-            exit = fadeOut() + slideOutVertically { it },
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
         ) {
-            Surface(
-                color = MaterialTheme.colorScheme.primaryContainer,
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.fillMaxWidth(),
+            androidx.compose.animation.AnimatedVisibility(
+                visible = showVerifySuccess,
+                enter = fadeIn() + slideInVertically { it },
+                exit = fadeOut() + slideOutVertically { it },
             ) {
-                Text(
-                    text = stringResource(R.string.recover_shard_imported),
-                    modifier = Modifier.padding(12.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = stringResource(R.string.recover_shard_imported),
+                        modifier = Modifier.padding(12.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
             }
         }
 
